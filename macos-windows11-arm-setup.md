@@ -45,12 +45,6 @@ curl -L -o virtio-drivers.tar.xz \
   "https://github.com/qemus/virtiso-arm/releases/download/v0.1.285-1/virtio-win-0.1.285.tar.xz"
 ```
 
-Extract the drivers:
-
-```bash
-tar -xf virtio-drivers.tar.xz
-```
-
 ## Step 4: Create Disk Image
 
 Create a 64GB disk image for Windows:
@@ -341,7 +335,7 @@ mkdir -p WinPEDrivers
 # Copy each driver from its w11/ARM64 subfolder to WinPEDrivers
 
 # List of drivers to inject (matching the container scripts)
-DRIVERS="qxl viofs sriov smbus qxldod viorng viostor viomem NetKVM Balloon vioscsi pvpanic vioinput viogpudo vioserial qemupciserial"
+DRIVERS=(qxl viofs sriov smbus qxldod viorng viostor viomem NetKVM Balloon vioscsi pvpanic vioinput viogpudo vioserial qemupciserial)
 
 # Find the extracted directory name (may vary)
 EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "virtio*" | head -1)
@@ -350,7 +344,7 @@ if [ -z "$EXTRACTED_DIR" ]; then
 fi
 
 # Copy each driver from w11/ARM64 folder
-for driver in $DRIVERS; do
+for driver in "${DRIVERS[@]}"; do
   DRIVER_PATH="$EXTRACTED_DIR/$driver/w11/ARM64"
   if [ -d "$DRIVER_PATH" ]; then
     mkdir -p "WinPEDrivers/$driver"
