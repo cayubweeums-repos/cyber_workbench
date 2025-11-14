@@ -10,6 +10,8 @@ Ensure you have Homebrew installed, then install the required tools:
 brew install qemu wimlib cdrtools
 ```
 
+**Note:** `cdrtools` provides `mkisofs` which is used to rebuild the ISO. On macOS, `genisoimage` is not available, but `mkisofs` (from `cdrtools`) is functionally equivalent.
+
 ## Step 1: Create Working Directory
 
 ```bash
@@ -65,16 +67,18 @@ Create a directory to extract the ISO:
 mkdir -p iso-extracted
 ```
 
-Extract the ISO (using 7z or hdiutil on macOS):
+Extract the ISO using hdiutil (built into macOS):
 
 ```bash
-# Using hdiutil (built into macOS)
 hdiutil attach win11-arm64.iso -mountpoint /Volumes/WIN11_ARM64
 cp -R /Volumes/WIN11_ARM64/* iso-extracted/
 hdiutil detach /Volumes/WIN11_ARM64
+```
 
-# OR using 7z (if installed via Homebrew: brew install p7zip)
-# 7z x win11-arm64.iso -oiso-extracted
+**Alternative:** If you have 7z installed (`brew install p7zip`):
+
+```bash
+7z x win11-arm64.iso -oiso-extracted
 ```
 
 ## Step 6: Download and Prepare OVMF Firmware
@@ -417,13 +421,14 @@ wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounatt
 
 ## Step 10: Rebuild ISO
 
-Rebuild the ISO with the modified boot.wim:
+Rebuild the ISO with the modified boot.wim. **On macOS, use `mkisofs` (from `cdrtools`) instead of `genisoimage`:**
 
 ```bash
 cd ~/windows-vm
 
-# Create new ISO
-genisoimage -o win11-arm64-modified.iso \
+# Using mkisofs (from cdrtools package installed via Homebrew)
+# mkisofs is functionally equivalent to genisoimage
+mkisofs -o win11-arm64-modified.iso \
   -b boot/etfsboot.com \
   -no-emul-boot \
   -c BOOT.CAT \
@@ -439,6 +444,19 @@ genisoimage -o win11-arm64-modified.iso \
   -no-emul-boot \
   -allow-limited-size \
   iso-extracted
+```
+
+**Note:** If `mkisofs` is not found, verify `cdrtools` is installed:
+```bash
+which mkisofs || echo "mkisofs not found - run: brew install cdrtools"
+```
+
+**Alternative:** If you prefer, you can create a symlink to use `genisoimage` as an alias:
+```bash
+# After installing cdrtools, create alias if you prefer genisoimage name
+ln -s $(which mkisofs) /usr/local/bin/genisoimage 2>/dev/null || \
+ln -s $(which mkisofs) ~/bin/genisoimage 2>/dev/null || \
+echo "Using mkisofs directly (recommended)"
 ```
 
 ## Step 11: Run QEMU with Windows 11 ARM
@@ -557,12 +575,19 @@ Once Windows is installed, you can connect via RDP for better performance:
 - Check the driver paths match the actual structure: `find virtio-win-0.1.285 -type d -name "ARM64"`
 
 ### ISO rebuild fails
-- Ensure `genisoimage` is installed: `brew install cdrtools`
+- Ensure `cdrtools` is installed: `brew install cdrtools`
+- Verify `mkisofs` is available: `which mkisofs`
 - Check that all required boot files exist in `iso-extracted`
+- If `mkisofs` fails, you may need to check the exact command syntax for your version
 
 ### VNC connection fails
 - Try a different VNC port: Change `-vnc 127.0.0.1:0` to `-vnc 127.0.0.1:1`
 - Check if port is in use: `lsof -i :5900`
+
+### mkisofs command not found
+- Install cdrtools: `brew install cdrtools`
+- Verify installation: `which mkisofs`
+- Add to PATH if needed: `export PATH="/opt/homebrew/bin:$PATH"` (for Apple Silicon) or `export PATH="/usr/local/bin:$PATH"` (for Intel)
 
 ## Notes
 
@@ -571,6 +596,7 @@ Once Windows is installed, you can connect via RDP for better performance:
 - RDP is enabled by default for remote access
 - Network is configured in user mode (NAT) - the VM can access the internet but uses 10.0.2.x addressing
 - For better network performance, consider setting up bridge networking (more complex)
+- **On macOS, use `mkisofs` instead of `genisoimage`** - they are functionally equivalent
 
 ## References
 
