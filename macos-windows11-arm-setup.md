@@ -384,7 +384,53 @@ wimlib-imagex update boot.wim $IMAGE_INDEX --command "delete --force --recursive
 wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/drivers-temp/WinPEDrivers /\$WinPEDriver\$"
 ```
 
-## Step 9: Inject autounattend.xml into boot.wim
+## Step 9: Copy Drivers to ISO Sources Directory
+
+**Important:** In addition to injecting drivers into boot.wim, we also need to copy drivers to the `\$OEM\$/\$\$/Drivers` directory in the ISO sources folder. This is where Windows Setup automatically looks for drivers during the installation phase. This matches how the official dockur/windows container handles drivers for Windows 11.
+
+```bash
+cd ~/windows-vm/iso-extracted/sources
+
+# Create the $OEM$ directory structure
+# Note: In zsh/bash, $$ is a special variable (process ID), so we need to escape it properly
+# Using single quotes for the entire path ensures literal $ signs
+mkdir -p '$OEM$'/'$$'/Drivers
+
+# Copy all drivers from WinPEDrivers to the ISO sources directory
+# This allows Windows Setup to automatically find and install drivers during installation
+cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+
+# Verify drivers were copied (you should see all the driver directories)
+ls -la '$OEM$'/'$$'/Drivers/
+```
+
+**Alternative syntax** (more explicit, works reliably in zsh):
+```bash
+# Build the path using variables to avoid $ expansion issues
+OEM_DIR='$OEM$'
+DOLLAR_DIR='$$'
+DRIVERS_DIR="$OEM_DIR/$DOLLAR_DIR/Drivers"
+
+mkdir -p "$DRIVERS_DIR"
+cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* "$DRIVERS_DIR/"
+ls -la "$DRIVERS_DIR"
+```
+
+**If you encounter issues**, you can also create the directories step by step:
+```bash
+cd ~/windows-vm/iso-extracted/sources
+mkdir -p '$OEM$'
+cd '$OEM$'
+mkdir -p '$$'
+cd '$$'
+mkdir -p Drivers
+cd ~/windows-vm/iso-extracted/sources
+cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+```
+
+**Note:** The `\$OEM\$/\$\$/Drivers` directory is a special Windows installation directory. Windows Setup automatically searches this location for drivers during installation, which is why we need to place drivers here in addition to injecting them into boot.wim.
+
+## Step 10: Inject autounattend.xml into boot.wim
 
 Inject the autounattend.xml file:
 
@@ -413,7 +459,7 @@ wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounatt
 wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounattend.xml /autounattend.dat"
 ```
 
-## Step 10: Rebuild ISO
+## Step 11: Rebuild ISO
 
 Rebuild the ISO with the modified boot.wim. **On macOS, use `mkisofs` (from `cdrtools`) instead of `genisoimage`:**
 
@@ -452,7 +498,7 @@ ln -s $(which mkisofs) ~/bin/genisoimage 2>/dev/null || \
 echo "Using mkisofs directly (recommended)"
 ```
 
-## Step 11: Run QEMU with Windows 11 ARM
+## Step 12: Run QEMU with Windows 11 ARM
 
 Now run QEMU with HVF acceleration. This command matches the container implementation adapted for macOS:
 
@@ -515,7 +561,7 @@ qemu-system-aarch64 \
 - You can also try without the `-bios` parameter to use QEMU's built-in UEFI
 - For Apple Silicon Macs, `/dev/urandom` should work, but if not, you can use `/dev/random`
 
-## Step 12: Connect via VNC
+## Step 13: Connect via VNC
 
 Connect to the VM using a VNC client:
 
@@ -531,7 +577,7 @@ vnc://127.0.0.1:5900
 
 The default VNC port is 5900 (display :0). If you want a different port, change `-vnc 127.0.0.1:0` to `-vnc 127.0.0.1:1` (for port 5901), etc.
 
-## Step 13: Wait for Installation
+## Step 14: Wait for Installation
 
 The installation will proceed automatically. You can watch the progress in the VNC window. The installation typically takes 20-30 minutes.
 
@@ -539,7 +585,7 @@ Default credentials:
 - Username: `Docker`
 - Password: (empty, no password)
 
-## Step 14: After Installation (Optional - RDP)
+## Step 15: After Installation (Optional - RDP)
 
 Once Windows is installed, you can connect via RDP for better performance:
 
