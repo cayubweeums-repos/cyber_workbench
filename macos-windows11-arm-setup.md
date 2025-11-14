@@ -463,14 +463,10 @@ wimlib-imagex extract boot.wim $index "/autounattend.xml" "--dest-dir=/tmp" 2>/d
 
 # Inject autounattend.xml (matches windows/src/install.sh:1106-1110)
 echo "Injecting autounattend.xml into boot.wim index $index..."
-if sudo wimlib-imagex update boot.wim $index --command "add ../../autounattend.xml /autounattend.xml"; then
+if sudo wimlib-imagex update boot.wim $index --command "add /Users/caleb/code/cyderes/cyber_workbench/autounattend.xml /autounattend.xml"; then
   echo "✓ Successfully added autounattend.xml"
-  # Also add as autounattend.dat (some Windows versions look for this)
-  sudo wimlib-imagex update boot.wim $index --command "add ../../autounattend.xml /autounattend.dat" 2>/dev/null || true
+  sudo wimlib-imagex update boot.wim $index --command "add /Users/caleb/code/cyderes/cyber_workbench/autounattend.xml /autounattend.dat" 2>/dev/null || true
   echo "✓ Also added as autounattend.dat"
-else
-  echo "✗ Failed to inject autounattend.xml!"
-  exit 1
 fi
 
 # Verify injection worked
@@ -518,13 +514,14 @@ qemu-system-aarch64 \
   -M virt \
   -drive file="$PWD/windows.img",format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
-  -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
+  -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=1 \
   -drive file="$PWD/win11-arm64-modified.iso",format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
   -device qemu-xhci,id=xhci,p2=7,p3=7 \
-  -device usb-storage,drive=cdrom0,removable=on,bootindex=0 \
+  -device usb-storage,drive=cdrom0,removable=on,bootindex=2 \
   -device usb-tablet \
+  -device usb-kbd \
   -netdev user,id=hostnet0 \
-  -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
+  -device virtio-net-pci,netdev=hostnet0 \
   -object rng-random,id=objrng0,filename=/dev/urandom \
   -device virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0 \
   -device ramfb \
@@ -536,86 +533,10 @@ qemu-system-aarch64 \
 
 ```
 
-**Key differences from previous version:**
-- **ISO mounted as USB storage**: `-device usb-storage,drive=cdrom0,removable=on` (matches windows-arm repo)
-- **Data disk uses virtio-scsi**: This requires the `vioscsi` driver (already in your driver list)
-- **USB controller**: `qemu-xhci` is required for USB storage to work
-
-**Alternative version using virtio-blk** (simpler, may be more reliable for driver detection):
-
-This version uses `virtio-blk` instead of `virtio-scsi`, which uses the `viostor` driver instead of `vioscsi`. This may be more reliable for driver auto-detection:
-
-```bash
-cd ~/windows-vm
-
-qemu-system-aarch64 \
-  -accel hvf \
-  -cpu max,pauth-impdef=on \
-  -smp 8 \
-  -m 8G \
-  -M virt \
-  -drive file=windows.img,format=qcow2,if=virtio,cache=writeback,bootindex=3 \
-  -drive file=win11-arm64-modified.iso,format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
-  -device virtio-scsi-pci,id=cdrom0b,bus=pcie.0,addr=0x5 \
-  -device scsi-cd,drive=cdrom0,bus=cdrom0b.0,bootindex=0 \
-  -netdev user,id=hostnet0 \
-  -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
-  -object rng-random,id=objrng0,filename=/dev/urandom \
-  -device virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0 \
-  -device ramfb \
-  -device qemu-xhci,id=xhci \
-  -device usb-tablet \
-  -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
-  -rtc base=localtime \
-  -display vnc=:0 \
-  -vnc 127.0.0.1:0
-```
-
-**Simplified version** (if the above doesn't work, try this simpler command):
-
-```bash
-cd ~/windows-vm
-
-qemu-system-aarch64 \
-  -accel hvf \
-  -cpu max \
-  -smp 4 \
-  -m 4G \
-  -machine virt \
-  -drive file=windows.img,format=qcow2,if=virtio,cache=writeback \
-  -drive file=win11-arm64-modified.iso,format=raw,if=none,id=cd0,media=cdrom \
-  -device virtio-scsi-pci,id=scsi0 \
-  -device scsi-cd,drive=cd0,bootindex=0 \
-  -netdev user,id=net0 \
-  -device virtio-net-pci,netdev=net0 \
-  -device virtio-rng-pci \
-  -device qemu-xhci,id=xhci \
-  -device usb-tablet \
-  -device usb-kbd \
-  -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
-  -rtc base=localtime \
-  -display vnc=:0 \
-  -vnc 127.0.0.1:0
-```
-
-**Note:** 
-- If the OVMF firmware path is different, find it with: `find /opt/homebrew /usr/local -name "*aarch64*.fd" 2>/dev/null`
-- You can also try without the `-bios` parameter to use QEMU's built-in UEFI
-- For Apple Silicon Macs, `/dev/urandom` should work, but if not, you can use `/dev/random`
-
 ## Step 13: Connect via VNC
 
 Connect to the VM using a VNC client:
-
-```bash
-# Using built-in macOS Screen Sharing (press Cmd+K in Finder, then enter):
-vnc://127.0.0.1:5900
-
-# Or use a VNC client like:
-# - RealVNC Viewer
-# - TigerVNC
-# - TightVNC
-```
+- RealVNC Viewer
 
 The default VNC port is 5900 (display :0). If you want a different port, change `-vnc 127.0.0.1:0` to `-vnc 127.0.0.1:1` (for port 5901), etc.
 
@@ -625,85 +546,7 @@ The installation will proceed automatically. You can watch the progress in the V
 
 Default credentials:
 - Username: `Docker`
-- Password: (empty, no password)
-
-## Step 15: After Installation (Optional - RDP)
-
-Once Windows is installed, you can connect via RDP for better performance:
-
-1. In Windows, ensure Remote Desktop is enabled (it should be enabled by default via autounattend.xml)
-2. Find the VM's IP address from QEMU's user network (usually 10.0.2.15)
-3. Connect using Microsoft Remote Desktop or any RDP client:
-
-```bash
-# On macOS, you can use the built-in Microsoft Remote Desktop app
-# Or install via: brew install --cask microsoft-remote-desktop
-```
-
-## Troubleshooting
-
-### QEMU fails to start
-- Ensure HVF is available: The `-accel hvf` option requires macOS 10.10+ and an Apple Silicon Mac
-- Check QEMU version: `qemu-system-aarch64 --version`
-
-### Drivers not loading / Windows Setup prompts for drivers
-
-If Windows Setup is asking you to browse for drivers, this means the drivers aren't being automatically detected. Check the following:
-
-1. **Verify drivers were injected into both boot.wim indices:**
-   ```bash
-   cd ~/windows-vm/iso-extracted/sources
-   wimlib-imagex info boot.wim
-   # Check that drivers are in both index 1 and index 2
-   ```
-
-2. **Verify $OEM$ directory structure:**
-   ```bash
-   cd ~/windows-vm/iso-extracted/sources
-   ls -la '$OEM$'/'$$'/Drivers/
-   # You should see driver folders: qxl, viostor, NetKVM, vioscsi, etc.
-   ```
-
-3. **Check disk type matches drivers:**
-   - **Data disk**: Uses `virtio-scsi` which requires the `vioscsi` driver
-   - **ISO/CDROM**: Uses `usb-storage` (matches windows-arm repo) - Windows has built-in USB drivers
-   - Verify `vioscsi` is in your driver list: `ls ~/windows-vm/drivers-temp/WinPEDrivers/ | grep -i scsi`
-   - **Important**: The official windows-arm repo mounts the ISO as USB storage (not SCSI) for ARM64 Windows
-
-4. **Try using virtio-blk instead of virtio-scsi** (simpler, may work better):
-   In your QEMU command, change:
-   ```bash
-   # FROM (virtio-scsi):
-   -drive file=windows.img,format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
-   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
-   -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
-   
-   # TO (virtio-blk):
-   -drive file=windows.img,format=qcow2,if=virtio,cache=writeback,bootindex=3
-   ```
-   This uses `viostor` driver instead of `vioscsi`, which may be more reliable.
-
-5. **Verify driver structure in $OEM$:**
-   Each driver should be in its own folder with the .inf, .sys, and .cat files:
-   ```bash
-   ls -la '$OEM$'/'$$'/Drivers/vioscsi/
-   # Should show: vioscsi.inf, vioscsi.sys, vioscsi.cat, etc.
-   ```
-
-### ISO rebuild fails
-- Ensure `cdrtools` is installed: `brew install cdrtools`
-- Verify `mkisofs` is available: `which mkisofs`
-- Check that all required boot files exist in `iso-extracted`
-- If `mkisofs` fails, you may need to check the exact command syntax for your version
-
-### VNC connection fails
-- Try a different VNC port: Change `-vnc 127.0.0.1:0` to `-vnc 127.0.0.1:1`
-- Check if port is in use: `lsof -i :5900`
-
-### mkisofs command not found
-- Install cdrtools: `brew install cdrtools`
-- Verify installation: `which mkisofs`
-- Add to PATH if needed: `export PATH="/opt/homebrew/bin:$PATH"` (for Apple Silicon) or `export PATH="/usr/local/bin:$PATH"` (for Intel)
+- Password: (empty, no password, or admin)
 
 ## Notes
 
@@ -711,8 +554,7 @@ If Windows Setup is asking you to browse for drivers, this means the drivers are
 - The default user "Docker" has no password and auto-logs in
 - RDP is enabled by default for remote access
 - Network is configured in user mode (NAT) - the VM can access the internet but uses 10.0.2.x addressing
-- For better network performance, consider setting up bridge networking (more complex)
-- **On macOS, use `mkisofs` instead of `genisoimage`** - they are functionally equivalent
+- For better network performance, consider setting up bridge networking
 
 ## References
 
