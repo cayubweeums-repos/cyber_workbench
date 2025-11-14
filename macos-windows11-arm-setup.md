@@ -447,7 +447,10 @@ fi
 index="1"
 result=$(wimlib-imagex info -xml boot.wim 2>/dev/null | iconv -f UTF-16LE -t UTF-8 2>/dev/null || wimlib-imagex info boot.wim)
 
-if [[ "${result^^}" == *"<IMAGE INDEX=\"2\">"* ]] || echo "$result" | grep -q "Image Index: 2"; then
+# Convert to uppercase for case-insensitive matching (zsh-compatible)
+result_upper=$(echo "$result" | tr '[:lower:]' '[:upper:]')
+
+if [[ "$result_upper" == *"<IMAGE INDEX=\"2\">"* ]] || echo "$result" | grep -q "Image Index: 2"; then
   index="2"
   echo "Using index 2 (Windows Setup)"
 else
