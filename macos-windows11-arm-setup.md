@@ -436,7 +436,6 @@ mkisofs -o win11-arm64-modified.iso \
   -eltorito-alt-boot \
   -eltorito-boot efi/microsoft/boot/efisys_noprompt.bin \
   -no-emul-boot \
-  -allow-limited-size \
   iso-extracted
 ```
 
