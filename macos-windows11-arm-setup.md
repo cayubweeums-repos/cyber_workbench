@@ -313,14 +313,14 @@ Create the autounattend.xml file for unattended installation. Save this as `auto
 First, find the boot.wim file and determine which image index to use:
 
 ```bash
-cd ~/windows-vm/iso-extracted/sources
+cd iso-extracted/sources
 wimlib-imagex info boot.wim
 ```
 
 Look for the image index (typically index 2 for Windows Setup, or index 1 if only one image exists). Now prepare the drivers:
 
 ```bash
-cd ~/windows-vm
+cd ../
 mkdir -p drivers-temp
 cd drivers-temp
 
@@ -369,7 +369,7 @@ ls -la WinPEDrivers/
 Now inject the drivers into boot.wim:
 
 ```bash
-cd ~/windows-vm/iso-extracted/sources
+cd iso-extracted/sources
 
 # Determine the correct image index (usually 2 for Windows Setup)
 IMAGE_INDEX=2
@@ -381,7 +381,7 @@ fi
 wimlib-imagex update boot.wim $IMAGE_INDEX --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
 
 # Add drivers to boot.wim
-wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
 ```
 
 ## Step 9: Copy Drivers to ISO Sources Directory
@@ -389,43 +389,19 @@ wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/drivers-t
 **Important:** In addition to injecting drivers into boot.wim, we also need to copy drivers to the `\$OEM\$/\$\$/Drivers` directory in the ISO sources folder. This is where Windows Setup automatically looks for drivers during the installation phase. This matches how the official dockur/windows container handles drivers for Windows 11.
 
 ```bash
-cd ~/windows-vm/iso-extracted/sources
+cd iso-extracted/sources
 
 # Create the $OEM$ directory structure
 # Note: In zsh/bash, $$ is a special variable (process ID), so we need to escape it properly
 # Using single quotes for the entire path ensures literal $ signs
-mkdir -p '$OEM$'/'$$'/Drivers
+sudo mkdir -p '$OEM$'/'$$'/Drivers
 
 # Copy all drivers from WinPEDrivers to the ISO sources directory
 # This allows Windows Setup to automatically find and install drivers during installation
-cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+sudo cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
 
 # Verify drivers were copied (you should see all the driver directories)
 ls -la '$OEM$'/'$$'/Drivers/
-```
-
-**Alternative syntax** (more explicit, works reliably in zsh):
-```bash
-# Build the path using variables to avoid $ expansion issues
-OEM_DIR='$OEM$'
-DOLLAR_DIR='$$'
-DRIVERS_DIR="$OEM_DIR/$DOLLAR_DIR/Drivers"
-
-mkdir -p "$DRIVERS_DIR"
-cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* "$DRIVERS_DIR/"
-ls -la "$DRIVERS_DIR"
-```
-
-**If you encounter issues**, you can also create the directories step by step:
-```bash
-cd ~/windows-vm/iso-extracted/sources
-mkdir -p '$OEM$'
-cd '$OEM$'
-mkdir -p '$$'
-cd '$$'
-mkdir -p Drivers
-cd ~/windows-vm/iso-extracted/sources
-cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
 ```
 
 **Note:** The `\$OEM\$/\$\$/Drivers` directory is a special Windows installation directory. Windows Setup automatically searches this location for drivers during installation, which is why we need to place drivers here in addition to injecting them into boot.wim.
@@ -443,20 +419,11 @@ if ! wimlib-imagex info boot.wim | grep -q "Image Index: 2"; then
   IMAGE_INDEX=1
 fi
 
-# Create temp directory for backup
-mkdir -p ~/windows-vm/temp
-
-# Try to extract existing autounattend.xml first (backup)
-wimlib-imagex extract boot.wim $IMAGE_INDEX "/autounattend.xml" "--dest-dir=~/windows-vm/temp" 2>/dev/null || true
-
-# Try to backup as autounattend.org if it exists
-wimlib-imagex extract boot.wim $IMAGE_INDEX "/autounattend.org" "--dest-dir=~/windows-vm/temp" 2>/dev/null || true
-
 # Add autounattend.xml to boot.wim
-wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounattend.xml /autounattend.xml"
+sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../autounattend.xml /autounattend.xml"
 
 # Also add as autounattend.dat (some Windows versions look for this)
-wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounattend.xml /autounattend.dat"
+sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../autounattend.xml /autounattend.dat"
 ```
 
 ## Step 11: Rebuild ISO
@@ -464,11 +431,11 @@ wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ~/windows-vm/autounatt
 Rebuild the ISO with the modified boot.wim. **On macOS, use `mkisofs` (from `cdrtools`) instead of `genisoimage`:**
 
 ```bash
-cd ~/windows-vm
+cd ../../
 
 # Using mkisofs (from cdrtools package installed via Homebrew)
 # mkisofs is functionally equivalent to genisoimage
-mkisofs -o win11-arm64-modified.iso \
+sudo mkisofs -o win11-arm64-modified.iso \
   -b boot/etfsboot.com \
   -no-emul-boot \
   -c BOOT.CAT \
@@ -485,19 +452,6 @@ mkisofs -o win11-arm64-modified.iso \
   iso-extracted
 ```
 
-**Note:** If `mkisofs` is not found, verify `cdrtools` is installed:
-```bash
-which mkisofs || echo "mkisofs not found - run: brew install cdrtools"
-```
-
-**Alternative:** If you prefer, you can create a symlink to use `genisoimage` as an alias:
-```bash
-# After installing cdrtools, create alias if you prefer genisoimage name
-ln -s $(which mkisofs) /usr/local/bin/genisoimage 2>/dev/null || \
-ln -s $(which mkisofs) ~/bin/genisoimage 2>/dev/null || \
-echo "Using mkisofs directly (recommended)"
-```
-
 ## Step 12: Run QEMU with Windows 11 ARM
 
 Now run QEMU with HVF acceleration. This command matches the container implementation adapted for macOS:
@@ -507,7 +461,7 @@ cd ~/windows-vm
 
 qemu-system-aarch64 \
   -accel hvf \
-  -cpu max,pauth-impdef=on \
+  -cpu max \
   -smp 8 \
   -m 8G \
   -M virt \
