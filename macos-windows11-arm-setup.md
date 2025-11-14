@@ -461,10 +461,10 @@ cd ~/windows-vm
 
 qemu-system-aarch64 \
   -accel hvf \
-  -cpu host \
-  -smp 2,sockets=1,dies=1,cores=2,threads=1 \
-  -m 4G \
-  -machine virt,highmem=off \
+  -cpu max,pauth-impdef=on \
+  -smp 8 \
+  -m 8G \
+  -M virt \
   -drive file=windows.img,format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
   -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
@@ -475,17 +475,12 @@ qemu-system-aarch64 \
   -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
   -object rng-random,id=objrng0,filename=/dev/urandom \
   -device virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0 \
+  -device ramfb \
   -device qemu-xhci,id=xhci \
   -device usb-tablet \
   -object iothread,id=io2 \
   -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
-  -rtc base=localtime \
-  -display vnc=:0 \
-  -vnc 127.0.0.1:0 \
-  -nodefaults \
-  -name windows,process=windows,debug-threads=on \
-  -monitor telnet:localhost:4444,server,nowait,nodelay \
-  -serial mon:stdio
+  -rtc base=localtime
 ```
 
 **Simplified version** (if the above doesn't work, try this simpler command):
@@ -495,8 +490,8 @@ cd ~/windows-vm
 
 qemu-system-aarch64 \
   -accel hvf \
-  -cpu host \
-  -smp 2 \
+  -cpu max \
+  -smp 4 \
   -m 4G \
   -machine virt \
   -drive file=windows.img,format=qcow2,if=virtio,cache=writeback \
