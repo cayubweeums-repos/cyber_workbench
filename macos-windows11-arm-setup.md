@@ -366,22 +366,36 @@ done
 ls -la WinPEDrivers/
 ```
 
-Now inject the drivers into boot.wim:
+Now inject the drivers into boot.wim. **Important:** boot.wim typically has two images:
+- Index 1: WinPE (Windows Preinstallation Environment)
+- Index 2: Windows Setup (the installation environment)
+
+We need to inject drivers into BOTH indices to ensure they're available during all phases:
 
 ```bash
 cd iso-extracted/sources
 
-# Determine the correct image index (usually 2 for Windows Setup)
-IMAGE_INDEX=2
-if ! wimlib-imagex info boot.wim | grep -q "Image Index: 2"; then
-  IMAGE_INDEX=1
+# Check how many images are in boot.wim
+wimlib-imagex info boot.wim
+
+# Inject drivers into index 1 (WinPE) if it exists
+if wimlib-imagex info boot.wim | grep -q "Image Index: 1"; then
+  echo "Injecting drivers into boot.wim index 1 (WinPE)..."
+  wimlib-imagex update boot.wim 1 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
+  wimlib-imagex update boot.wim 1 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
 fi
 
-# Remove existing WinPE drivers if any
-wimlib-imagex update boot.wim $IMAGE_INDEX --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
-
-# Add drivers to boot.wim
-sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+# Inject drivers into index 2 (Windows Setup) if it exists
+if wimlib-imagex info boot.wim | grep -q "Image Index: 2"; then
+  echo "Injecting drivers into boot.wim index 2 (Windows Setup)..."
+  wimlib-imagex update boot.wim 2 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
+  wimlib-imagex update boot.wim 2 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+else
+  # If index 2 doesn't exist, use index 1
+  echo "Only one image found, injecting into index 1..."
+  wimlib-imagex update boot.wim 1 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
+  wimlib-imagex update boot.wim 1 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+fi
 ```
 
 ## Step 9: Copy Drivers to ISO Sources Directory
@@ -398,7 +412,7 @@ sudo mkdir -p '$OEM$'/'$$'/Drivers
 
 # Copy all drivers from WinPEDrivers to the ISO sources directory
 # This allows Windows Setup to automatically find and install drivers during installation
-sudo cp -R ~/windows-vm/drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+sudo cp -R ../../drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
 
 # Verify drivers were copied (you should see all the driver directories)
 ls -la '$OEM$'/'$$'/Drivers/
@@ -454,14 +468,11 @@ sudo mkisofs -o win11-arm64-modified.iso \
 
 ## Step 12: Run QEMU with Windows 11 ARM
 
-Now run QEMU with HVF acceleration. This command matches the container implementation adapted for macOS:
-
 ```bash
-cd ~/windows-vm
 
 qemu-system-aarch64 \
   -accel hvf \
-  -cpu max \
+  -cpu max,pauth-impdef=on \
   -smp 8 \
   -m 8G \
   -M virt \
@@ -469,8 +480,7 @@ qemu-system-aarch64 \
   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
   -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
   -drive file=win11-arm64-modified.iso,format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
-  -device virtio-scsi-pci,id=cdrom0b,bus=pcie.0,addr=0x5,iothread=io2 \
-  -device scsi-cd,drive=cdrom0,bus=cdrom0b.0,bootindex=0 \
+  -device usb-storage,drive=cdrom0,removable=on,bootindex=0 \
   -netdev user,id=hostnet0 \
   -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
   -object rng-random,id=objrng0,filename=/dev/urandom \
@@ -480,7 +490,45 @@ qemu-system-aarch64 \
   -device usb-tablet \
   -object iothread,id=io2 \
   -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
-  -rtc base=localtime
+  -rtc base=localtime \
+  -display vnc=:0 \
+  -vnc 127.0.0.1:0
+
+```
+
+**Key differences from previous version:**
+- **ISO mounted as USB storage**: `-device usb-storage,drive=cdrom0,removable=on` (matches windows-arm repo)
+- **Data disk uses virtio-scsi**: This requires the `vioscsi` driver (already in your driver list)
+- **USB controller**: `qemu-xhci` is required for USB storage to work
+
+**Alternative version using virtio-blk** (simpler, may be more reliable for driver detection):
+
+This version uses `virtio-blk` instead of `virtio-scsi`, which uses the `viostor` driver instead of `vioscsi`. This may be more reliable for driver auto-detection:
+
+```bash
+cd ~/windows-vm
+
+qemu-system-aarch64 \
+  -accel hvf \
+  -cpu max,pauth-impdef=on \
+  -smp 8 \
+  -m 8G \
+  -M virt \
+  -drive file=windows.img,format=qcow2,if=virtio,cache=writeback,bootindex=3 \
+  -drive file=win11-arm64-modified.iso,format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
+  -device virtio-scsi-pci,id=cdrom0b,bus=pcie.0,addr=0x5 \
+  -device scsi-cd,drive=cdrom0,bus=cdrom0b.0,bootindex=0 \
+  -netdev user,id=hostnet0 \
+  -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
+  -object rng-random,id=objrng0,filename=/dev/urandom \
+  -device virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0 \
+  -device ramfb \
+  -device qemu-xhci,id=xhci \
+  -device usb-tablet \
+  -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
+  -rtc base=localtime \
+  -display vnc=:0 \
+  -vnc 127.0.0.1:0
 ```
 
 **Simplified version** (if the above doesn't work, try this simpler command):
@@ -558,9 +606,49 @@ Once Windows is installed, you can connect via RDP for better performance:
 - Ensure HVF is available: The `-accel hvf` option requires macOS 10.10+ and an Apple Silicon Mac
 - Check QEMU version: `qemu-system-aarch64 --version`
 
-### Drivers not loading
-- Verify drivers were correctly extracted and copied
-- Check the driver paths match the actual structure: `find virtio-win-0.1.285 -type d -name "ARM64"`
+### Drivers not loading / Windows Setup prompts for drivers
+
+If Windows Setup is asking you to browse for drivers, this means the drivers aren't being automatically detected. Check the following:
+
+1. **Verify drivers were injected into both boot.wim indices:**
+   ```bash
+   cd ~/windows-vm/iso-extracted/sources
+   wimlib-imagex info boot.wim
+   # Check that drivers are in both index 1 and index 2
+   ```
+
+2. **Verify $OEM$ directory structure:**
+   ```bash
+   cd ~/windows-vm/iso-extracted/sources
+   ls -la '$OEM$'/'$$'/Drivers/
+   # You should see driver folders: qxl, viostor, NetKVM, vioscsi, etc.
+   ```
+
+3. **Check disk type matches drivers:**
+   - **Data disk**: Uses `virtio-scsi` which requires the `vioscsi` driver
+   - **ISO/CDROM**: Uses `usb-storage` (matches windows-arm repo) - Windows has built-in USB drivers
+   - Verify `vioscsi` is in your driver list: `ls ~/windows-vm/drivers-temp/WinPEDrivers/ | grep -i scsi`
+   - **Important**: The official windows-arm repo mounts the ISO as USB storage (not SCSI) for ARM64 Windows
+
+4. **Try using virtio-blk instead of virtio-scsi** (simpler, may work better):
+   In your QEMU command, change:
+   ```bash
+   # FROM (virtio-scsi):
+   -drive file=windows.img,format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
+   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
+   -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
+   
+   # TO (virtio-blk):
+   -drive file=windows.img,format=qcow2,if=virtio,cache=writeback,bootindex=3
+   ```
+   This uses `viostor` driver instead of `vioscsi`, which may be more reliable.
+
+5. **Verify driver structure in $OEM$:**
+   Each driver should be in its own folder with the .inf, .sys, and .cat files:
+   ```bash
+   ls -la '$OEM$'/'$$'/Drivers/vioscsi/
+   # Should show: vioscsi.inf, vioscsi.sys, vioscsi.cat, etc.
+   ```
 
 ### ISO rebuild fails
 - Ensure `cdrtools` is installed: `brew install cdrtools`
