@@ -69,12 +69,6 @@ cp -R /Volumes/WIN11_ARM64/* iso-extracted/
 hdiutil detach /Volumes/WIN11_ARM64
 ```
 
-**Alternative:** If you have 7z installed (`brew install p7zip`):
-
-```bash
-7z x win11-arm64.iso -oiso-extracted
-```
-
 ## Step 6: Download and Prepare OVMF Firmware
 
 Download ARM64 OVMF firmware. You can get it from the QEMU package or download separately:
@@ -320,7 +314,7 @@ wimlib-imagex info boot.wim
 Look for the image index (typically index 2 for Windows Setup, or index 1 if only one image exists). Now prepare the drivers:
 
 ```bash
-cd ../
+cd ../../
 mkdir -p drivers-temp
 cd drivers-temp
 
@@ -373,7 +367,7 @@ Now inject the drivers into boot.wim. **Important:** boot.wim typically has two 
 We need to inject drivers into BOTH indices to ensure they're available during all phases:
 
 ```bash
-cd iso-extracted/sources
+cd ../iso-extracted/sources
 
 # Check how many images are in boot.wim
 wimlib-imagex info boot.wim
@@ -388,13 +382,13 @@ fi
 # Inject drivers into index 2 (Windows Setup) if it exists
 if wimlib-imagex info boot.wim | grep -q "Image Index: 2"; then
   echo "Injecting drivers into boot.wim index 2 (Windows Setup)..."
-  wimlib-imagex update boot.wim 2 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
-  wimlib-imagex update boot.wim 2 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+  sudo wimlib-imagex update boot.wim 2 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
+  sudo wimlib-imagex update boot.wim 2 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
 else
   # If index 2 doesn't exist, use index 1
   echo "Only one image found, injecting into index 1..."
-  wimlib-imagex update boot.wim 1 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
-  wimlib-imagex update boot.wim 1 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
+  sudo wimlib-imagex update boot.wim 1 --command "delete --force --recursive /\$WinPEDriver\$" 2>/dev/null || true
+  sudo wimlib-imagex update boot.wim 1 --command "add ../../drivers-temp/WinPEDrivers /\$WinPEDriver\$"
 fi
 ```
 
@@ -403,7 +397,6 @@ fi
 **Important:** In addition to injecting drivers into boot.wim, we also need to copy drivers to the `\$OEM\$/\$\$/Drivers` directory in the ISO sources folder. This is where Windows Setup automatically looks for drivers during the installation phase. This matches how the official dockur/windows container handles drivers for Windows 11.
 
 ```bash
-cd iso-extracted/sources
 
 # Create the $OEM$ directory structure
 # Note: In zsh/bash, $$ is a special variable (process ID), so we need to escape it properly
@@ -425,7 +418,6 @@ ls -la '$OEM$'/'$$'/Drivers/
 Inject the autounattend.xml file:
 
 ```bash
-cd ~/windows-vm/iso-extracted/sources
 
 # Determine the correct image index (should match the one used for drivers)
 IMAGE_INDEX=2
@@ -472,22 +464,22 @@ sudo mkisofs -o win11-arm64-modified.iso \
 
 qemu-system-aarch64 \
   -accel hvf \
-  -cpu max,pauth-impdef=on \
+  -cpu max \
   -smp 8 \
   -m 8G \
   -M virt \
-  -drive file=windows.img,format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
+  -drive file="$PWD/windows.img",format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on \
   -device virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2 \
   -device scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=3 \
-  -drive file=win11-arm64-modified.iso,format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
+  -drive file="$PWD/win11-arm64-modified.iso",format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom \
+  -device qemu-xhci,id=xhci,p2=7,p3=7 \
   -device usb-storage,drive=cdrom0,removable=on,bootindex=0 \
+  -device usb-tablet \
   -netdev user,id=hostnet0 \
   -device virtio-net-pci,netdev=hostnet0,bus=pcie.0 \
   -object rng-random,id=objrng0,filename=/dev/urandom \
   -device virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0 \
   -device ramfb \
-  -device qemu-xhci,id=xhci \
-  -device usb-tablet \
   -object iothread,id=io2 \
   -bios /opt/homebrew/share/qemu/edk2-aarch64-code.fd \
   -rtc base=localtime \
