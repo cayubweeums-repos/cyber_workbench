@@ -87,7 +87,16 @@ For this guide, we'll use QEMU's built-in UEFI support which should work on macO
 
 ## Step 7: Prepare autounattend.xml
 
-Create the autounattend.xml file for unattended installation. Save this as `autounattend.xml`:
+Create the autounattend.xml file for unattended installation. **Important:** Save this file as `autounattend.xml` (exactly this name).
+
+**About the filename:** Windows Setup searches for answer files in this order:
+- `autounattend.xml` (primary - use this name)
+- `autounattend.dat` (alternative - we'll inject this too in Step 10)
+- `unattend.xml` (older Windows versions)
+
+We'll save it as `autounattend.xml` and inject it into boot.wim as both `autounattend.xml` and `autounattend.dat` for maximum compatibility.
+
+Save this as `autounattend.xml` in your `~/windows-vm/` directory:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -415,21 +424,57 @@ ls -la '$OEM$'/'$$'/Drivers/
 
 ## Step 10: Inject autounattend.xml into boot.wim
 
-Inject the autounattend.xml file:
+**Critical:** autounattend.xml must be injected into the Windows Setup image (usually index 2) for it to be read during installation. This matches the exact method used in `windows/src/install.sh` lines 1072-1110.
+
+**Important about filenames:** Windows Setup searches for answer files in this order:
+1. `autounattend.xml` (primary - what we use)
+2. `autounattend.dat` (alternative - some Windows versions look for this)
+3. `unattend.xml` (older Windows versions)
+
+The repos inject it as both `autounattend.xml` and `autounattend.dat` to ensure compatibility. We'll do the same.
 
 ```bash
+cd iso-extracted/sources
 
-# Determine the correct image index (should match the one used for drivers)
-IMAGE_INDEX=2
-if ! wimlib-imagex info boot.wim | grep -q "Image Index: 2"; then
-  IMAGE_INDEX=1
+# Verify autounattend.xml exists
+if [ ! -f "../../autounattend.xml" ]; then
+  echo "Error: autounattend.xml not found! Make sure it's in ~/windows-vm/"
+  exit 1
 fi
 
-# Add autounattend.xml to boot.wim
-sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../autounattend.xml /autounattend.xml"
+# Determine the correct index (matches windows/src/install.sh:1072-1077)
+# Default to index 1, but use index 2 if it exists (Windows Setup)
+index="1"
+result=$(wimlib-imagex info -xml boot.wim 2>/dev/null | iconv -f UTF-16LE -t UTF-8 2>/dev/null || wimlib-imagex info boot.wim)
 
-# Also add as autounattend.dat (some Windows versions look for this)
-sudo wimlib-imagex update boot.wim $IMAGE_INDEX --command "add ../../autounattend.xml /autounattend.dat"
+if [[ "${result^^}" == *"<IMAGE INDEX=\"2\">"* ]] || echo "$result" | grep -q "Image Index: 2"; then
+  index="2"
+  echo "Using index 2 (Windows Setup)"
+else
+  echo "Using index 1 (only one image found)"
+fi
+
+# Backup existing autounattend.xml if it exists (matches windows/src/install.sh:1087-1095)
+wimlib-imagex extract boot.wim $index "/autounattend.xml" "--dest-dir=/tmp" 2>/dev/null && \
+  wimlib-imagex update boot.wim $index --command "rename /autounattend.xml /autounattend.org" 2>/dev/null || true
+
+# Inject autounattend.xml (matches windows/src/install.sh:1106-1110)
+echo "Injecting autounattend.xml into boot.wim index $index..."
+if sudo wimlib-imagex update boot.wim $index --command "add ../../autounattend.xml /autounattend.xml"; then
+  echo "✓ Successfully added autounattend.xml"
+  # Also add as autounattend.dat (some Windows versions look for this)
+  sudo wimlib-imagex update boot.wim $index --command "add ../../autounattend.xml /autounattend.dat" 2>/dev/null || true
+  echo "✓ Also added as autounattend.dat"
+else
+  echo "✗ Failed to inject autounattend.xml!"
+  exit 1
+fi
+
+# Verify injection worked
+echo "Verifying autounattend.xml was injected into index $index..."
+wimlib-imagex extract boot.wim $index "/autounattend.xml" "--dest-dir=/tmp" 2>/dev/null && \
+  echo "✓ Verified: autounattend.xml found in index $index" || \
+  echo "✗ WARNING: Could not verify autounattend.xml in index $index"
 ```
 
 ## Step 11: Rebuild ISO
