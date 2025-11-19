@@ -46,6 +46,10 @@ class VMManagerApp:
         self.page.title = "VM Manager"
         self.page.bgcolor = COLOR_BG
         self.page.padding = 20
+        self.page.window_width = 900
+        self.page.window_height = 700
+        self.page.window_min_width = 600
+        self.page.window_min_height = 400
         
         # Header
         header = ft.Container(
@@ -274,25 +278,34 @@ class VMManagerApp:
                 except ValueError:
                     self.show_error("Invalid numeric value")
             
+            # Create dialog with explicit styling
+            dialog_content = ft.Container(
+                content=ft.Column(
+                    controls=[
+                        name_field,
+                        ft.Row([cpu_field, cpu_text], spacing=10),
+                        ft.Row([ram_field, ram_text], spacing=10),
+                        disk_field
+                    ],
+                    spacing=15,
+                    tight=True,
+                    scroll=ft.ScrollMode.AUTO
+                ),
+                width=500,
+                height=400,
+                padding=20,
+                bgcolor="#2a2a2a"
+            )
+            
             dialog = ft.AlertDialog(
                 modal=True,
-                title=ft.Text("Create New VM", color=COLOR_TEXT),
-                content=ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            name_field,
-                            ft.Row([cpu_field, cpu_text]),
-                            ft.Row([ram_field, ram_text]),
-                            disk_field
-                        ],
-                        spacing=15,
-                        tight=True
-                    ),
-                    width=400,
-                    padding=20
-                ),
+                title=ft.Text("Create New VM", color=COLOR_TEXT, size=20, weight=ft.FontWeight.BOLD),
+                content=dialog_content,
                 actions=[
-                    ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, "open", False) or self.page.update()),
+                    ft.TextButton(
+                        "Cancel", 
+                        on_click=lambda e: (setattr(dialog, "open", False), self.page.update())
+                    ),
                     ft.ElevatedButton(
                         "Create",
                         bgcolor=COLOR_ACCENT,
@@ -301,13 +314,31 @@ class VMManagerApp:
                     )
                 ],
                 bgcolor=COLOR_BG,
-                actions_alignment=ft.MainAxisAlignment.END
+                actions_alignment=ft.MainAxisAlignment.END,
+                shape=ft.RoundedRectangleBorder(radius=8)
             )
             
+            # Close any existing dialog first
+            if self.page.dialog:
+                self.page.dialog.open = False
+                self.page.update()
+            
+            # Set dialog and open it
             self.page.dialog = dialog
             dialog.open = True
+            print(f"Dialog state - open: {dialog.open}, modal: {dialog.modal}")
+            print(f"Page dialog set: {self.page.dialog is not None}")
+            print(f"Page window visible: {self.page.window.visible if hasattr(self.page.window, 'visible') else 'unknown'}")
+            
+            # Force update
             self.page.update()
-            print("Create VM dialog opened")
+            
+            # Small delay then update again to ensure dialog renders
+            import time
+            time.sleep(0.1)
+            self.page.update()
+            
+            print("Create VM dialog opened and page updated")
         except Exception as ex:
             print(f"Error showing create dialog: {ex}")
             import traceback
@@ -633,11 +664,22 @@ if __name__ == "__main__":
     print(f"Flet version: {ft.__version__ if hasattr(ft, '__version__') else 'unknown'}")
     
     try:
-        # Try desktop app mode first, fallback to web if needed
-        ft.app(target=main, view=ft.AppView.FLET_APP)
+        # Try desktop app mode - ensure window is visible
+        print("Launching Flet in desktop app mode...")
+        ft.app(
+            target=main, 
+            view=ft.AppView.FLET_APP,
+            window_width=900,
+            window_height=700
+        )
     except Exception as e:
         print(f"Fatal error starting Flet: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
+        print("\nTrying web view as fallback...")
+        try:
+            ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
+        except Exception as e2:
+            print(f"Web view also failed: {e2}")
+            sys.exit(1)
 
