@@ -52,6 +52,29 @@ class VMManager:
         self.repo_root = Path(repo_root)
         self.vms_dir = self.repo_root / "vms"
         self.vms_dir.mkdir(exist_ok=True)
+        self.sudo_password: Optional[str] = None
+
+    def set_sudo_password(self, password: str):
+        """Store sudo password for operations requiring elevation."""
+        self.sudo_password = password
+
+    def _ensure_sudo_password(self):
+        if not self.sudo_password:
+            raise RuntimeError("Sudo password not set. Please provide it in the UI.")
+
+    def _run_command(self, cmd: List[str], use_sudo: bool = False, **kwargs):
+        """Run subprocess command optionally with sudo."""
+        if use_sudo:
+            self._ensure_sudo_password()
+            kwargs = kwargs.copy()
+            input_data = kwargs.pop("input", "")
+            if input_data is None:
+                input_data = ""
+            if not kwargs.get("text"):
+                kwargs["text"] = True
+            kwargs["input"] = f"{self.sudo_password}\n{input_data}"
+            cmd = ["sudo", "-S"] + cmd
+        return subprocess.run(cmd, **kwargs)
     
     def list_vms(self) -> List[str]:
         """List all VM names by scanning the vms directory."""
@@ -160,7 +183,6 @@ class VMManager:
         # (e.g., files in $OEM$ directories, modified ISOs, etc.)
         import shutil
         try:
-            # First try without sudo
             try:
                 shutil.rmtree(vm_dir)
                 print(f"✓ Deleted VM '{name}'")
@@ -168,8 +190,9 @@ class VMManager:
             except PermissionError:
                 # If permission denied, use sudo
                 print(f"Permission denied, using sudo to delete '{name}'...")
-                result = subprocess.run(
-                    ["sudo", "rm", "-rf", str(vm_dir)],
+                self._run_command(
+                    ["rm", "-rf", str(vm_dir)],
+                    use_sudo=True,
                     capture_output=True,
                     text=True,
                     check=True
@@ -178,6 +201,7 @@ class VMManager:
                 return True
         except subprocess.CalledProcessError as e:
             print(f"Error deleting VM '{name}' with sudo: {e}")
+            print(f"stdout: {e.stdout}")
             print(f"stderr: {e.stderr}")
             return False
         except Exception as e:

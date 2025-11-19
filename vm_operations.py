@@ -5,7 +5,8 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional, Callable, List
+import shlex
 
 
 class VMOperations:
@@ -35,6 +36,31 @@ class VMOperations:
             "viomem", "NetKVM", "Balloon", "vioscsi", "pvpanic", "vioinput",
             "viogpudo", "vioserial", "qemupciserial"
         ]
+        self.sudo_password: Optional[str] = None
+
+    def set_sudo_password(self, password: str):
+        """Store sudo password for commands requiring elevation."""
+        self.sudo_password = password
+
+    def _ensure_sudo_password(self):
+        if not self.sudo_password:
+            raise RuntimeError(
+                "Sudo password not set. Please provide it in the GUI when prompted."
+            )
+
+    def _run_command(self, cmd: List[str], use_sudo: bool = False, **kwargs):
+        """Run subprocess command, optionally with sudo."""
+        if use_sudo:
+            self._ensure_sudo_password()
+            kwargs = kwargs.copy()
+            input_data = kwargs.pop("input", "")
+            if input_data is None:
+                input_data = ""
+            if not kwargs.get("text"):
+                kwargs["text"] = True
+            kwargs["input"] = f"{self.sudo_password}\n{input_data}"
+            cmd = ["sudo", "-S"] + cmd
+        return subprocess.run(cmd, **kwargs)
     
     def create_vm_disk(self, vm_name: str, size_gb: int) -> bool:
         """Create a qcow2 disk image for the VM."""
@@ -607,16 +633,18 @@ class VMOperations:
                 if has_index_1:
                     print("Injecting drivers into boot.wim index 1 (WinPE)...")
                     # Delete existing (ignore errors)
-                    subprocess.run(
+                    self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
+                        use_sudo=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # Add drivers
-                    result = subprocess.run(
+                    result = self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", f"add {drivers_path_str} /\\$WinPEDriver\\$"],
+                        use_sudo=True,
                         capture_output=True,
                         text=True,
                         check=True
@@ -627,16 +655,18 @@ class VMOperations:
                 if has_index_2:
                     print("Injecting drivers into boot.wim index 2 (Windows Setup)...")
                     # Delete existing (ignore errors)
-                    subprocess.run(
-                        ["sudo", "wimlib-imagex", "update", "boot.wim", "2",
+                    self._run_command(
+                        ["wimlib-imagex", "update", "boot.wim", "2",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
+                        use_sudo=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # Add drivers
-                    result = subprocess.run(
-                        ["sudo", "wimlib-imagex", "update", "boot.wim", "2",
+                    result = self._run_command(
+                        ["wimlib-imagex", "update", "boot.wim", "2",
                          "--command", f"add {drivers_path_str} /\\$WinPEDriver\\$"],
+                        use_sudo=True,
                         capture_output=True,
                         text=True,
                         check=True
@@ -682,22 +712,24 @@ class VMOperations:
             oem_dir_absolute = iso_extracted / "$OEM$" / "$$" / "Drivers"
             
             print(f"Creating OEM directory: {oem_dir_absolute}")
-            result = subprocess.run(
-                ["sudo", "mkdir", "-p", str(oem_dir_absolute)],
+            self._run_command(
+                ["mkdir", "-p", str(oem_dir_absolute)],
+                use_sudo=True,
                 capture_output=True,
                 text=True,
                 check=True
             )
             
             # Copy all drivers from WinPEDrivers to the OEM directory (as per guide)
-            # Guide uses: sudo cp -R ../../drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
-            # From sources, ../../drivers-temp/WinPEDrivers goes up to temp dir, then to drivers-temp
-            drivers_source_relative = "../../drivers-temp/WinPEDrivers"
-            print(f"Copying drivers from {drivers_source_relative} to {oem_dir_relative}")
-            
-            result = subprocess.run(
-                ["sudo", "cp", "-R", f"{drivers_source_relative}/*", oem_dir_relative + "/"],
-                shell=True,
+            drivers_source_absolute = (drivers_temp / "WinPEDrivers").resolve()
+            copy_cmd = (
+                f"cp -R {shlex.quote(str(drivers_source_absolute))}/* "
+                f"{shlex.quote(str(oem_dir_absolute))}/"
+            )
+            print(f"Copying drivers from {drivers_source_absolute} to {oem_dir_absolute}")
+            self._run_command(
+                ["/bin/sh", "-c", copy_cmd],
+                use_sudo=True,
                 capture_output=True,
                 text=True,
                 check=True
@@ -784,9 +816,10 @@ class VMOperations:
                 
                 # Inject autounattend.xml (as per guide - use absolute path)
                 print(f"Injecting autounattend.xml into boot.wim index {index}...")
-                result = subprocess.run(
-                    ["sudo", "wimlib-imagex", "update", "boot.wim", index,
+                result = self._run_command(
+                    ["wimlib-imagex", "update", "boot.wim", index,
                      "--command", f"add {autounattend_path} /autounattend.xml"],
+                    use_sudo=True,
                     capture_output=True,
                     text=True,
                     check=True
@@ -794,9 +827,10 @@ class VMOperations:
                 print("✓ Successfully added autounattend.xml")
                 
                 # Also inject as autounattend.dat (as per guide)
-                subprocess.run(
-                    ["sudo", "wimlib-imagex", "update", "boot.wim", index,
+                self._run_command(
+                    ["wimlib-imagex", "update", "boot.wim", index,
                      "--command", f"add {autounattend_path} /autounattend.dat"],
+                    use_sudo=True,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
@@ -846,7 +880,7 @@ class VMOperations:
             
             # Build command exactly as per setup guide
             cmd = [
-                "sudo", "mkisofs",
+                "mkisofs",
                 "-o", str(output_iso),
                 "-b", "boot/etfsboot.com",
                 "-no-emul-boot",
@@ -864,9 +898,10 @@ class VMOperations:
                 str(iso_extracted)
             ]
             
-            print(f"Running: {' '.join(cmd)}")
-            result = subprocess.run(
+            print(f"Running: sudo {' '.join(cmd)}")
+            result = self._run_command(
                 cmd,
+                use_sudo=True,
                 capture_output=True,
                 text=True,
                 check=True

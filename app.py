@@ -5,6 +5,7 @@ import math
 import os
 import sys
 from pathlib import Path
+from typing import Optional, Callable
 from vm_manager import VMManager, VMConfig
 from vm_operations import VMOperations
 
@@ -36,6 +37,7 @@ class VMManagerApp:
             self.vm_list_view = None
             # Track VM status for real-time updates
             self.vm_status = {}  # {vm_name: "status_text"}
+            self.sudo_password: Optional[str] = None
             
             # Advanced mode state
             self.advanced_mode = False
@@ -628,13 +630,15 @@ class VMManagerApp:
     def show_delete_dialog(self, vm_name: str):
         """Show confirmation dialog to delete a VM."""
         def delete_vm(e):
-            self.page.close(dialog)
-            
-            if self.vm_manager.delete_vm(vm_name):
-                self.show_success(f"VM '{vm_name}' deleted successfully")
-                self.refresh_vm_list()
-            else:
-                self.show_error(f"Failed to delete VM '{vm_name}'")
+            def perform_delete():
+                self.page.close(dialog)
+                
+                if self.vm_manager.delete_vm(vm_name):
+                    self.show_success(f"VM '{vm_name}' deleted successfully")
+                    self.refresh_vm_list()
+                else:
+                    self.show_error(f"Failed to delete VM '{vm_name}'")
+            self.ensure_sudo_password(perform_delete)
         
         dialog = ft.AlertDialog(
             modal=True,
@@ -680,7 +684,91 @@ class VMManagerApp:
         
         self.refresh_vm_list()
     
+    def update_sudo_password(self, password: str):
+        """Store sudo password and propagate to managers."""
+        self.sudo_password = password
+        self.vm_operations.set_sudo_password(password)
+        self.vm_manager.set_sudo_password(password)
+    
+    def ensure_sudo_password(self, on_ready: Callable[[], None]):
+        """Ensure sudo password is available before running privileged steps."""
+        if self.sudo_password:
+            # Re-set password on managers in case they were recreated
+            self.vm_operations.set_sudo_password(self.sudo_password)
+            self.vm_manager.set_sudo_password(self.sudo_password)
+            on_ready()
+            return
+        
+        password_field = ft.TextField(
+            label="sudo Password",
+            password=True,
+            can_reveal_password=True,
+            autofocus=True,
+            bgcolor="#333333",
+            border_color=COLOR_ACCENT_DARK,
+            color=COLOR_TEXT,
+            label_style=ft.TextStyle(color=COLOR_ACCENT),
+            hint_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY),
+            hint_text="Enter your macOS account password"
+        )
+        error_text = ft.Text("", color="#ff4444")
+        
+        def submit_password(e):
+            password = password_field.value or ""
+            if not password:
+                error_text.value = "Password is required."
+                self.page.update()
+                return
+            self.update_sudo_password(password)
+            self.page.close(dialog)
+            on_ready()
+        
+        def cancel_password(e):
+            self.page.close(dialog)
+            self.show_error("sudo password is required to continue.")
+        
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("sudo Access Required", color=COLOR_TEXT),
+            content=ft.Column(
+                controls=[
+                    ft.Text(
+                        "Some steps require elevated privileges. "
+                        "Enter your macOS account password.",
+                        color=COLOR_TEXT_SECONDARY
+                    ),
+                    password_field,
+                    error_text
+                ],
+                spacing=10,
+                tight=True
+            ),
+            actions=[
+                ft.TextButton(
+                    "Cancel",
+                    style=ft.ButtonStyle(color=COLOR_ACCENT),
+                    on_click=cancel_password
+                ),
+                ft.ElevatedButton(
+                    "Continue",
+                    bgcolor=COLOR_ACCENT,
+                    color=COLOR_BG,
+                    on_click=submit_password
+                )
+            ],
+            bgcolor=COLOR_BG,
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+        
+        self.page.open(dialog)
+    
     def create_vm_workflow(self, name: str, cpu_cores: int, ram_gb: int, disk_gb: int):
+        """Wrapper to ensure sudo password before running workflow."""
+        def start_workflow():
+            self._execute_create_vm_workflow(name, cpu_cores, ram_gb, disk_gb)
+        self.ensure_sudo_password(start_workflow)
+    
+    def _execute_create_vm_workflow(self, name: str, cpu_cores: int, ram_gb: int, disk_gb: int):
         """Complete workflow to create a VM."""
         # Show progress dialog
         progress_dialog = ft.AlertDialog(
