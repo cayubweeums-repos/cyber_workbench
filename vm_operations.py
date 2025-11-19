@@ -776,24 +776,33 @@ class VMOperations:
                 
                 # Determine the correct index (matches setup guide logic)
                 # Try XML first, fallback to regular info
-                result = subprocess.run(
-                    ["wimlib-imagex", "info", "-xml", "boot.wim"],
-                    capture_output=True,
-                    text=True
-                )
+                result_upper = ""
+                try:
+                    xml_result = subprocess.run(
+                        ["wimlib-imagex", "info", "-xml", "boot.wim"],
+                        capture_output=True,
+                        text=False
+                    )
+                    if xml_result.returncode == 0 and xml_result.stdout:
+                        try:
+                            xml_text = xml_result.stdout.decode("utf-16-le")
+                        except UnicodeDecodeError:
+                            xml_text = xml_result.stdout.decode("utf-8", errors="ignore")
+                        result_upper = xml_text.upper()
+                except Exception as xml_err:
+                    print(f"Warning: failed to read XML info: {xml_err}")
                 
-                if result.returncode != 0:
-                    # Fallback to regular info
-                    result = subprocess.run(
+                if not result_upper:
+                    fallback = subprocess.run(
                         ["wimlib-imagex", "info", "boot.wim"],
                         capture_output=True,
                         text=True,
                         check=True
                     )
+                    result_upper = fallback.stdout.upper()
                 
                 # Check for index 2 (Windows Setup) - prefer this
-                result_upper = result.stdout.upper()
-                if "<IMAGE INDEX=\"2\">" in result_upper or "Image Index: 2" in result.stdout:
+                if "<IMAGE INDEX=\"2\">" in result_upper or "IMAGE INDEX: 2" in result_upper:
                     index = "2"
                     print("Using index 2 (Windows Setup)")
                 else:
