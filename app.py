@@ -150,7 +150,13 @@ class VMManagerApp:
                     vm_card = self.create_vm_card(vm_name, config)
                     self.vm_list_view.controls.append(vm_card)
         
-        self.page.update()
+        # Only update if page is available and not in the middle of a dialog operation
+        try:
+            self.page.update()
+        except Exception:
+            # If update fails, it's likely because we're in the middle of another update
+            # This is okay, the next update will catch it
+            pass
     
     def create_vm_card(self, vm_name: str, config: VMConfig) -> ft.Container:
         """Create a card for a VM."""
@@ -164,6 +170,8 @@ class VMManagerApp:
                 status_color = COLOR_ACCENT
             else:
                 status_color = COLOR_TEXT_SECONDARY
+            # For custom status, check if VM is actually running
+            is_running = self.vm_manager.is_vm_running(vm_name)
         else:
             # Default status check
             is_running = self.vm_manager.is_vm_running(vm_name)
@@ -564,14 +572,19 @@ class VMManagerApp:
         )
         
         self.page.open(progress_dialog)
+        self.page.update()  # Ensure dialog is added to page first
         
         def update_progress(message: str):
             """Update progress dialog and VM status in list."""
-            progress_dialog.content.controls[1].value = message
             # Update VM status for real-time display
             self.vm_status[name] = message
+            
+            # Update progress dialog content if it's still open
+            if progress_dialog.open and len(progress_dialog.content.controls) > 1:
+                progress_dialog.content.controls[1].value = message
+            
+            # Refresh VM list (this will call page.update() internally)
             self.refresh_vm_list()
-            self.page.update()
         
         try:
             # Step 1: Create VM config
