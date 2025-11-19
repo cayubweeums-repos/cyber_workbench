@@ -59,7 +59,7 @@ class VMManagerApp:
                 "/",
                 [
                     ft.AppBar(
-                        title=ft.Text("TEST", color=COLOR_TEXT),
+                        title=ft.Text("", color=COLOR_TEXT),
                         bgcolor=COLOR_BG,
                         color=COLOR_ACCENT
                     ),

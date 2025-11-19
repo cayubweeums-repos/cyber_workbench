@@ -142,114 +142,134 @@ class VMOperations:
                 progress_callback(f"ERROR: {error_msg}")
             return False
         
-        # Create temporary directory for ISO extraction
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            iso_extracted = temp_path / "iso-extracted"
-            drivers_temp = temp_path / "drivers-temp"
-            
-            try:
-                # Step 1: Extract ISO
-                if progress_callback:
-                    progress_callback("Extracting ISO...")
-                print("Step 1: Extracting ISO...")
-                if not self._extract_iso(iso_path, iso_extracted):
-                    error_msg = "Failed to extract ISO"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print("✓ ISO extracted successfully")
-                
-                # Step 2: Download and extract VirtIO drivers
-                if progress_callback:
-                    progress_callback("Downloading VirtIO drivers...")
-                print("Step 2: Downloading and extracting VirtIO drivers...")
-                if not self._download_and_extract_drivers(drivers_temp):
-                    error_msg = "Failed to download/extract VirtIO drivers"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print("✓ VirtIO drivers downloaded and extracted")
-                
-                # Step 3: Prepare WinPE drivers
-                if progress_callback:
-                    progress_callback("Preparing drivers...")
-                print("Step 3: Preparing WinPE drivers...")
-                winpe_drivers = self._prepare_winpe_drivers(drivers_temp)
-                if not winpe_drivers:
-                    error_msg = "Failed to prepare WinPE drivers"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print(f"✓ WinPE drivers prepared at {winpe_drivers}")
-                
-                # Step 4: Inject drivers into boot.wim
-                if progress_callback:
-                    progress_callback("Injecting drivers into boot.wim...")
-                print("Step 4: Injecting drivers into boot.wim...")
-                if not self._inject_drivers_into_boot_wim(iso_extracted, winpe_drivers, drivers_temp):
-                    error_msg = "Failed to inject drivers into boot.wim"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print("✓ Drivers injected into boot.wim")
-                
-                # Step 5: Copy drivers to $OEM$/$$/Drivers
-                if progress_callback:
-                    progress_callback("Copying drivers to OEM directory...")
-                print("Step 5: Copying drivers to OEM directory...")
-                if not self._copy_drivers_to_oem(iso_extracted, winpe_drivers):
-                    error_msg = "Failed to copy drivers to OEM directory"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print("✓ Drivers copied to OEM directory")
-                
-                # Step 6: Inject autounattend.xml
-                if progress_callback:
-                    progress_callback("Injecting autounattend.xml...")
-                print("Step 6: Injecting autounattend.xml...")
-                if not self._inject_autounattend(iso_extracted, autounattend_path):
-                    error_msg = "Failed to inject autounattend.xml"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print("✓ autounattend.xml injected")
-                
-                # Step 7: Rebuild ISO
-                if progress_callback:
-                    progress_callback("Rebuilding ISO...")
-                print("Step 7: Rebuilding ISO...")
-                if not self._rebuild_iso(iso_extracted, modified_iso):
-                    error_msg = "Failed to rebuild ISO"
-                    print(f"ERROR: {error_msg}")
-                    if progress_callback:
-                        progress_callback(f"ERROR: {error_msg}")
-                    return False
-                print(f"✓ Modified ISO created: {modified_iso}")
-                return True
-                
-            except Exception as e:
-                error_msg = f"Error preparing ISO: {e}"
-                print(error_msg)
-                import traceback
-                traceback.print_exc()
+        # Create temporary directory for ISO extraction within VM folder (within repo)
+        # Structure matches guide: iso-extracted and drivers-temp at same level
+        vm_temp_dir = vm_dir / "temp-iso-prep"
+        iso_extracted = vm_temp_dir / "iso-extracted"
+        drivers_temp = vm_temp_dir / "drivers-temp"
+        
+        # Clean up any existing temp directory
+        if vm_temp_dir.exists():
+            print(f"Cleaning up existing temp directory: {vm_temp_dir}")
+            shutil.rmtree(vm_temp_dir)
+        
+        vm_temp_dir.mkdir(parents=True, exist_ok=True)
+        iso_extracted.mkdir(exist_ok=True)
+        drivers_temp.mkdir(exist_ok=True)
+        print(f"Using temp directory: {vm_temp_dir}")
+        print(f"ISO extracted will be at: {iso_extracted}")
+        print(f"Drivers temp will be at: {drivers_temp}")
+        
+        try:
+            # Step 1: Extract ISO
+            if progress_callback:
+                progress_callback("Extracting ISO...")
+            print("Step 1: Extracting ISO...")
+            if not self._extract_iso(iso_path, iso_extracted):
+                error_msg = "Failed to extract ISO"
+                print(f"ERROR: {error_msg}")
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
+            print("✓ ISO extracted successfully")
+            
+            # Step 2: Download and extract VirtIO drivers
+            if progress_callback:
+                progress_callback("Downloading VirtIO drivers...")
+            print("Step 2: Downloading and extracting VirtIO drivers...")
+            if not self._download_and_extract_drivers(drivers_temp, vm_temp_dir):
+                error_msg = "Failed to download/extract VirtIO drivers"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print("✓ VirtIO drivers downloaded and extracted")
+            
+            # Step 3: Prepare WinPE drivers
+            if progress_callback:
+                progress_callback("Preparing drivers...")
+            print("Step 3: Preparing WinPE drivers...")
+            winpe_drivers = self._prepare_winpe_drivers(drivers_temp)
+            if not winpe_drivers:
+                error_msg = "Failed to prepare WinPE drivers"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print(f"✓ WinPE drivers prepared at {winpe_drivers}")
+            
+            # Step 4: Inject drivers into boot.wim
+            if progress_callback:
+                progress_callback("Injecting drivers into boot.wim...")
+            print("Step 4: Injecting drivers into boot.wim...")
+            if not self._inject_drivers_into_boot_wim(iso_extracted, winpe_drivers, drivers_temp):
+                error_msg = "Failed to inject drivers into boot.wim"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print("✓ Drivers injected into boot.wim")
+            
+            # Step 5: Copy drivers to $OEM$/$$/Drivers
+            if progress_callback:
+                progress_callback("Copying drivers to OEM directory...")
+            print("Step 5: Copying drivers to OEM directory...")
+            if not self._copy_drivers_to_oem(iso_extracted, winpe_drivers, drivers_temp):
+                error_msg = "Failed to copy drivers to OEM directory"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print("✓ Drivers copied to OEM directory")
+            
+            # Step 6: Inject autounattend.xml
+            if progress_callback:
+                progress_callback("Injecting autounattend.xml...")
+            print("Step 6: Injecting autounattend.xml...")
+            if not self._inject_autounattend(iso_extracted, autounattend_path):
+                error_msg = "Failed to inject autounattend.xml"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print("✓ autounattend.xml injected")
+            
+            # Step 7: Rebuild ISO
+            if progress_callback:
+                progress_callback("Rebuilding ISO...")
+            print("Step 7: Rebuilding ISO...")
+            if not self._rebuild_iso(iso_extracted, modified_iso):
+                error_msg = "Failed to rebuild ISO"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print(f"✓ Modified ISO created: {modified_iso}")
+            
+            # Clean up temp directory after successful ISO creation
+            print(f"Cleaning up temp directory: {vm_temp_dir}")
+            shutil.rmtree(vm_temp_dir)
+            
+            return True
+            
+        except Exception as e:
+            error_msg = f"Error preparing ISO: {e}"
+            print(error_msg)
+            import traceback
+            traceback.print_exc()
+            if progress_callback:
+                progress_callback(f"ERROR: {error_msg}")
+            # Keep temp directory on error for debugging
+            print(f"Temp directory kept for debugging: {vm_temp_dir}")
+            return False
     
     def _extract_iso(self, iso_path: Path, extract_dir: Path) -> bool:
-        """Extract ISO using hdiutil."""
+        """Extract ISO using hdiutil - matches setup guide Step 5."""
         extract_dir.mkdir(parents=True, exist_ok=True)
         
         try:
-            # Mount the ISO
+            # Mount the ISO (as per guide)
+            print(f"Mounting ISO: {iso_path}")
             result = subprocess.run(
                 ["hdiutil", "attach", str(iso_path), "-mountpoint", "/Volumes/WIN11_ARM64"],
                 capture_output=True,
@@ -257,31 +277,23 @@ class VMOperations:
             )
             
             if result.returncode != 0:
-                print(f"Error mounting ISO: {result.stderr}")
+                print(f"ERROR mounting ISO: {result.stderr}")
                 return False
             
-            # Copy files
+            # Copy files using cp -R (exactly as per guide: cp -R /Volumes/WIN11_ARM64/* iso-extracted/)
             mount_point = Path("/Volumes/WIN11_ARM64")
             if not mount_point.exists():
                 print("ERROR: Mount point /Volumes/WIN11_ARM64 does not exist after mounting")
                 return False
             
-            files_copied = 0
-            for item in mount_point.iterdir():
-                dest = extract_dir / item.name
-                try:
-                    if item.is_dir():
-                        shutil.copytree(item, dest, dirs_exist_ok=True)
-                    else:
-                        shutil.copy2(item, dest)
-                    files_copied += 1
-                except Exception as e:
-                    print(f"Warning: Failed to copy {item.name}: {e}")
-            
-            if files_copied == 0:
-                print("ERROR: No files were copied from ISO")
-                subprocess.run(["hdiutil", "detach", "/Volumes/WIN11_ARM64"], capture_output=True)
-                return False
+            print(f"Copying files from {mount_point} to {extract_dir}")
+            result = subprocess.run(
+                ["cp", "-R", f"{mount_point}/*", str(extract_dir) + "/"],
+                shell=True,
+                capture_output=True,
+                text=True,
+                check=True
+            )
             
             # Verify sources directory exists (critical for boot.wim)
             if not (extract_dir / "sources" / "boot.wim").exists():
@@ -289,7 +301,7 @@ class VMOperations:
                 subprocess.run(["hdiutil", "detach", "/Volumes/WIN11_ARM64"], capture_output=True)
                 return False
             
-            # Unmount
+            # Unmount (as per guide)
             unmount_result = subprocess.run(
                 ["hdiutil", "detach", "/Volumes/WIN11_ARM64"],
                 capture_output=True,
@@ -297,12 +309,24 @@ class VMOperations:
             )
             
             if unmount_result.returncode != 0:
-                print(f"Warning: Failed to unmount ISO: {unmount_result.stderr}")
+                print(f"WARNING: Failed to unmount ISO: {unmount_result.stderr}")
             
-            print(f"✓ Extracted {files_copied} items from ISO")
+            # Count extracted items
+            files_count = len(list(extract_dir.rglob("*")))
+            print(f"✓ Extracted ISO ({files_count} items)")
             return True
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR extracting ISO: {e}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            # Try to unmount if still mounted
+            try:
+                subprocess.run(["hdiutil", "detach", "/Volumes/WIN11_ARM64"], capture_output=True)
+            except:
+                pass
+            return False
         except Exception as e:
-            print(f"Error extracting ISO: {e}")
+            print(f"ERROR extracting ISO: {e}")
             import traceback
             traceback.print_exc()
             # Try to unmount if still mounted
@@ -312,62 +336,191 @@ class VMOperations:
                 pass
             return False
     
-    def _download_and_extract_drivers(self, drivers_temp: Path) -> bool:
-        """Download and extract VirtIO drivers."""
+    def _download_and_extract_drivers(self, drivers_temp: Path, vm_temp_dir: Path) -> bool:
+        """Download and extract VirtIO drivers - matches setup guide Step 8."""
         drivers_temp.mkdir(parents=True, exist_ok=True)
-        drivers_archive = self.shared_dir / "virtio-drivers.tar.xz"
+        drivers_archive_shared = self.shared_dir / "virtio-drivers.tar.xz"
         
         # Download if not exists
-        if not drivers_archive.exists():
+        if not drivers_archive_shared.exists():
             try:
-                print("Downloading VirtIO drivers...")
-                subprocess.run(
-                    ["curl", "-L", "-o", str(drivers_archive), self.virtio_drivers_url],
+                print(f"Downloading VirtIO drivers to: {drivers_archive_shared}")
+                result = subprocess.run(
+                    ["curl", "-L", "-o", str(drivers_archive_shared), self.virtio_drivers_url],
+                    capture_output=True,
+                    text=True,
                     check=True
                 )
+                print(f"✓ VirtIO drivers downloaded ({drivers_archive_shared.stat().st_size / (1024*1024):.2f} MB)")
+            except subprocess.CalledProcessError as e:
+                print(f"ERROR downloading drivers: {e}")
+                print(f"stdout: {e.stdout}")
+                print(f"stderr: {e.stderr}")
+                return False
             except Exception as e:
-                print(f"Error downloading drivers: {e}")
+                print(f"ERROR downloading drivers: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
         
-        # Extract
+        # Copy archive to temp directory to match guide structure (../virtio-drivers.tar.xz from drivers-temp)
+        # Guide expects: from drivers-temp, archive is at ../virtio-drivers.tar.xz
+        drivers_archive_temp = vm_temp_dir / "virtio-drivers.tar.xz"
         try:
-            subprocess.run(
-                ["tar", "-xf", str(drivers_archive), "-C", str(drivers_temp)],
-                check=True
-            )
-            return True
+            print(f"Copying archive to temp directory: {drivers_archive_temp}")
+            shutil.copy2(drivers_archive_shared, drivers_archive_temp)
+            print(f"✓ Archive copied to temp directory")
         except Exception as e:
-            print(f"Error extracting drivers: {e}")
+            print(f"ERROR copying archive: {e}")
+            return False
+        
+        # Extract (as per guide: cd drivers-temp, then tar -xf ../virtio-drivers.tar.xz)
+        try:
+            print(f"Extracting drivers from {drivers_archive_temp} to {drivers_temp}")
+            print(f"Archive size: {drivers_archive_temp.stat().st_size / (1024*1024):.2f} MB")
+            print(f"Target directory exists: {drivers_temp.exists()}")
+            
+            # Change to drivers_temp directory and extract (matching guide behavior exactly)
+            original_cwd = Path.cwd()
+            import os
+            try:
+                os.chdir(drivers_temp)
+                print(f"Changed to directory: {os.getcwd()}")
+                
+                # Extract using relative path (as per guide: tar -xf ../virtio-drivers.tar.xz)
+                archive_relative = "../virtio-drivers.tar.xz"
+                print(f"Running: tar -xf {archive_relative}")
+                result = subprocess.run(
+                    ["tar", "-xf", archive_relative],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                
+                print(f"✓ tar command completed successfully")
+                if result.stdout:
+                    print(f"tar stdout: {result.stdout}")
+                if result.stderr:
+                    print(f"tar stderr: {result.stderr}")
+                
+            finally:
+                os.chdir(original_cwd)
+            
+            # Verify extraction - check immediately after extraction
+            print(f"Checking extraction in: {drivers_temp}")
+            contents = list(drivers_temp.iterdir())
+            print(f"Contents after extraction: {[d.name for d in contents]}")
+            
+            if not contents:
+                print(f"ERROR: No files extracted to {drivers_temp}")
+                print(f"Directory exists: {drivers_temp.exists()}")
+                print(f"Directory is readable: {os.access(drivers_temp, os.R_OK)}")
+                return False
+            
+            # Check for expected structure
+            virtio_dirs = [d for d in contents if d.is_dir() and "virtio" in d.name.lower()]
+            if virtio_dirs:
+                print(f"Found virtio directories: {[d.name for d in virtio_dirs]}")
+            else:
+                # Check if drivers are directly in the directory
+                driver_dirs = [d for d in contents if d.is_dir() and d.name in self.drivers]
+                if driver_dirs:
+                    print(f"Found driver directories directly: {[d.name for d in driver_dirs]}")
+                else:
+                    print(f"WARNING: No virtio* or driver directories found")
+                    print(f"All contents: {[(d.name, 'dir' if d.is_dir() else 'file') for d in contents]}")
+            
+            print(f"✓ Drivers extracted to {drivers_temp} ({len(contents)} items)")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR extracting drivers: {e}")
+            print(f"Command: tar -xf ../virtio-drivers.tar.xz (from {drivers_temp})")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            return False
+        except Exception as e:
+            print(f"ERROR extracting drivers: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def _prepare_winpe_drivers(self, drivers_temp: Path) -> Optional[Path]:
-        """Prepare WinPE drivers directory structure."""
+        """Prepare WinPE drivers directory structure - matches setup guide Step 8."""
         winpe_drivers = drivers_temp / "WinPEDrivers"
         winpe_drivers.mkdir(exist_ok=True)
         
-        # Find extracted directory
+        print(f"Preparing WinPE drivers in: {winpe_drivers}")
+        print(f"Drivers temp directory: {drivers_temp}")
+        
+        # Check if drivers archive was extracted
+        if not any(drivers_temp.iterdir()):
+            print(f"ERROR: drivers-temp directory is empty: {drivers_temp}")
+            print(f"Contents of drivers_temp: {list(drivers_temp.iterdir())}")
+            return None
+        
+        # Find extracted directory (as per guide: find . -maxdepth 1 -type d -name "virtio*")
         extracted_dirs = list(drivers_temp.glob("virtio*"))
         if not extracted_dirs:
-            extracted_dirs = [drivers_temp]
+            # Check if we're already in the extracted directory
+            if (drivers_temp / "qxl").exists() or (drivers_temp / "NetKVM").exists():
+                print("Using drivers_temp as extracted directory")
+                extracted_dir = drivers_temp
+            else:
+                print(f"ERROR: No virtio* directory found in {drivers_temp}")
+                print(f"Contents: {[d.name for d in drivers_temp.iterdir()]}")
+                return None
+        else:
+            extracted_dir = extracted_dirs[0]
+            print(f"Found extracted directory: {extracted_dir}")
         
-        extracted_dir = extracted_dirs[0]
+        # Copy each driver (as per guide)
+        drivers_copied = 0
+        drivers_missing = []
         
-        # Copy each driver
         for driver in self.drivers:
             driver_path = extracted_dir / driver / "w11" / "ARM64"
+            print(f"Checking driver {driver} at: {driver_path}")
+            
             if driver_path.exists():
                 dest = winpe_drivers / driver
                 dest.mkdir(exist_ok=True)
-                shutil.copytree(driver_path, dest, dirs_exist_ok=True)
+                try:
+                    shutil.copytree(driver_path, dest, dirs_exist_ok=True)
+                    print(f"✓ Copied {driver}")
+                    drivers_copied += 1
+                except Exception as e:
+                    print(f"ERROR copying {driver}: {e}")
+                    drivers_missing.append(f"{driver} (copy error: {e})")
             else:
-                # Try alternative path
+                # Try alternative path (as per guide)
                 alt_paths = list(extracted_dir.rglob(f"{driver}/*ARM64*"))
                 if alt_paths:
                     dest = winpe_drivers / driver
                     dest.mkdir(exist_ok=True)
-                    shutil.copytree(alt_paths[0], dest, dirs_exist_ok=True)
+                    try:
+                        shutil.copytree(alt_paths[0], dest, dirs_exist_ok=True)
+                        print(f"✓ Copied {driver} from alternative path: {alt_paths[0]}")
+                        drivers_copied += 1
+                    except Exception as e:
+                        print(f"ERROR copying {driver} from alt path: {e}")
+                        drivers_missing.append(f"{driver} (alt path copy error: {e})")
+                else:
+                    print(f"WARNING: {driver} not found at {driver_path} and no alternative path found")
+                    drivers_missing.append(f"{driver} (not found)")
         
-        return winpe_drivers if any(winpe_drivers.iterdir()) else None
+        # Verify drivers were copied (as per guide)
+        if not any(winpe_drivers.iterdir()):
+            print(f"ERROR: WinPEDrivers directory is empty after copying")
+            print(f"Expected drivers: {self.drivers}")
+            print(f"Drivers copied: {drivers_copied}")
+            print(f"Drivers missing: {drivers_missing}")
+            return None
+        
+        print(f"✓ WinPE drivers prepared: {drivers_copied}/{len(self.drivers)} drivers copied")
+        if drivers_missing:
+            print(f"WARNING: Missing drivers: {drivers_missing}")
+        
+        return winpe_drivers
     
     def _inject_drivers_into_boot_wim(self, iso_extracted: Path, winpe_drivers: Path, drivers_temp: Path) -> bool:
         """Inject drivers into boot.wim - matches setup guide Step 8."""
@@ -399,9 +552,17 @@ class VMOperations:
                 has_index_2 = "Image Index: 2" in result.stdout
                 
                 # Calculate relative path from sources to drivers (as per guide: ../../drivers-temp/WinPEDrivers)
-                # From iso-extracted/sources to drivers-temp/WinPEDrivers
-                relative_drivers_path = Path("../../") / drivers_temp.name / "WinPEDrivers"
+                # From iso-extracted/sources, we go up two levels (../../) to get to temp dir, then drivers-temp/WinPEDrivers
+                # Guide structure: temp-dir/iso-extracted/sources and temp-dir/drivers-temp/WinPEDrivers
+                relative_drivers_path = Path("../../") / "drivers-temp" / "WinPEDrivers"
                 drivers_path_str = str(relative_drivers_path)
+                print(f"Using relative drivers path (from sources): {drivers_path_str}")
+                # Verify the path exists
+                abs_path = (sources_dir.parent.parent / "drivers-temp" / "WinPEDrivers").resolve()
+                if not abs_path.exists():
+                    print(f"ERROR: Drivers path does not exist: {abs_path}")
+                    return False
+                print(f"Verified absolute path exists: {abs_path}")
                 
                 # Inject into index 1 (WinPE) if it exists (as per guide)
                 if has_index_1:
@@ -462,36 +623,55 @@ class VMOperations:
             traceback.print_exc()
             return False
     
-    def _copy_drivers_to_oem(self, iso_extracted: Path, winpe_drivers: Path) -> bool:
+    def _copy_drivers_to_oem(self, iso_extracted: Path, winpe_drivers: Path, drivers_temp: Path) -> bool:
         """Copy drivers to $OEM$/$$/Drivers directory - matches setup guide Step 9."""
-        # Create the $OEM$/$$/Drivers directory structure (as per guide)
-        oem_dir = iso_extracted / "$OEM$" / "$$" / "Drivers"
+        # As per guide: we're in iso-extracted/sources, so $OEM$ is at iso-extracted/$OEM$
+        # Guide command: sudo mkdir -p '$OEM$'/'$$'/Drivers
+        # Guide command: sudo cp -R ../../drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+        
+        sources_dir = iso_extracted / "sources"
+        original_cwd = Path.cwd()
         
         try:
-            # Use sudo to create directory (as per guide)
+            import os
+            os.chdir(sources_dir)
+            print(f"Changed to sources directory: {os.getcwd()}")
+            
+            # Create the $OEM$/$$/Drivers directory structure (as per guide)
+            # From sources, $OEM$ is at ../$OEM$
+            oem_dir_relative = "../$OEM$/$$/Drivers"
+            oem_dir_absolute = iso_extracted / "$OEM$" / "$$" / "Drivers"
+            
+            print(f"Creating OEM directory: {oem_dir_absolute}")
             result = subprocess.run(
-                ["sudo", "mkdir", "-p", str(oem_dir)],
+                ["sudo", "mkdir", "-p", str(oem_dir_absolute)],
                 capture_output=True,
                 text=True,
                 check=True
             )
             
             # Copy all drivers from WinPEDrivers to the OEM directory (as per guide)
-            # Use sudo for copy as well since directory was created with sudo
+            # Guide uses: sudo cp -R ../../drivers-temp/WinPEDrivers/* '$OEM$'/'$$'/Drivers/
+            # From sources, ../../drivers-temp/WinPEDrivers goes up to temp dir, then to drivers-temp
+            drivers_source_relative = "../../drivers-temp/WinPEDrivers"
+            print(f"Copying drivers from {drivers_source_relative} to {oem_dir_relative}")
+            
             result = subprocess.run(
-                ["sudo", "cp", "-R", f"{winpe_drivers}/*", str(oem_dir) + "/"],
+                ["sudo", "cp", "-R", f"{drivers_source_relative}/*", oem_dir_relative + "/"],
                 shell=True,
                 capture_output=True,
                 text=True,
                 check=True
             )
             
-            # Verify drivers were copied
-            if not any(oem_dir.iterdir()):
+            # Verify drivers were copied (as per guide: ls -la '$OEM$'/'$$'/Drivers/)
+            if not any(oem_dir_absolute.iterdir()):
                 print("ERROR: No drivers found in OEM directory after copy")
                 return False
             
-            print(f"✓ Drivers copied to OEM directory ({len(list(oem_dir.iterdir()))} items)")
+            driver_count = len(list(oem_dir_absolute.iterdir()))
+            print(f"✓ Drivers copied to OEM directory ({driver_count} items)")
+            print(f"OEM directory contents: {[d.name for d in oem_dir_absolute.iterdir()]}")
             return True
         except subprocess.CalledProcessError as e:
             print(f"ERROR copying drivers to OEM: {e}")
@@ -503,6 +683,8 @@ class VMOperations:
             import traceback
             traceback.print_exc()
             return False
+        finally:
+            os.chdir(original_cwd)
     
     def _inject_autounattend(self, iso_extracted: Path, autounattend_path: Path) -> bool:
         """Inject autounattend.xml into boot.wim - matches setup guide Step 10."""
