@@ -448,82 +448,123 @@ class VMOperations:
             return False
     
     def _prepare_winpe_drivers(self, drivers_temp: Path) -> Optional[Path]:
-        """Prepare WinPE drivers directory structure - matches setup guide Step 8."""
-        winpe_drivers = drivers_temp / "WinPEDrivers"
-        winpe_drivers.mkdir(exist_ok=True)
+        """Prepare WinPE drivers directory structure - matches setup guide Step 8 exactly."""
+        # Change to drivers_temp directory (as per guide: cd drivers-temp)
+        original_cwd = Path.cwd()
+        import os
         
-        print(f"Preparing WinPE drivers in: {winpe_drivers}")
-        print(f"Drivers temp directory: {drivers_temp}")
-        
-        # Check if drivers archive was extracted
-        if not any(drivers_temp.iterdir()):
-            print(f"ERROR: drivers-temp directory is empty: {drivers_temp}")
-            print(f"Contents of drivers_temp: {list(drivers_temp.iterdir())}")
-            return None
-        
-        # Find extracted directory (as per guide: find . -maxdepth 1 -type d -name "virtio*")
-        extracted_dirs = list(drivers_temp.glob("virtio*"))
-        if not extracted_dirs:
-            # Check if we're already in the extracted directory
-            if (drivers_temp / "qxl").exists() or (drivers_temp / "NetKVM").exists():
-                print("Using drivers_temp as extracted directory")
-                extracted_dir = drivers_temp
-            else:
-                print(f"ERROR: No virtio* directory found in {drivers_temp}")
-                print(f"Contents: {[d.name for d in drivers_temp.iterdir()]}")
-                return None
-        else:
-            extracted_dir = extracted_dirs[0]
-            print(f"Found extracted directory: {extracted_dir}")
-        
-        # Copy each driver (as per guide)
-        drivers_copied = 0
-        drivers_missing = []
-        
-        for driver in self.drivers:
-            driver_path = extracted_dir / driver / "w11" / "ARM64"
-            print(f"Checking driver {driver} at: {driver_path}")
+        try:
+            os.chdir(drivers_temp)
+            print(f"Changed to drivers-temp directory: {os.getcwd()}")
             
-            if driver_path.exists():
-                dest = winpe_drivers / driver
-                dest.mkdir(exist_ok=True)
-                try:
-                    shutil.copytree(driver_path, dest, dirs_exist_ok=True)
-                    print(f"✓ Copied {driver}")
-                    drivers_copied += 1
-                except Exception as e:
-                    print(f"ERROR copying {driver}: {e}")
-                    drivers_missing.append(f"{driver} (copy error: {e})")
+            # Create WinPE driver directory structure (as per guide: mkdir -p WinPEDrivers)
+            winpe_drivers = Path("WinPEDrivers")
+            winpe_drivers.mkdir(exist_ok=True)
+            print(f"Created WinPEDrivers directory: {winpe_drivers.absolute()}")
+            
+            # Check if drivers archive was extracted
+            contents = list(Path(".").iterdir())
+            if not contents:
+                print(f"ERROR: drivers-temp directory is empty: {drivers_temp}")
+                return None
+            
+            print(f"Contents in drivers-temp: {[d.name for d in contents]}")
+            
+            # Find extracted directory (as per guide: find . -maxdepth 1 -type d -name "virtio*")
+            extracted_dirs = [d for d in contents if d.is_dir() and "virtio" in d.name.lower()]
+            if not extracted_dirs:
+                # Check if we're already in the extracted directory (as per guide fallback)
+                if Path("qxl").exists() or Path("NetKVM").exists():
+                    print("Using current directory as extracted directory (drivers are directly here)")
+                    extracted_dir = Path(".")
+                else:
+                    print(f"ERROR: No virtio* directory found")
+                    print(f"All contents: {[(d.name, 'dir' if d.is_dir() else 'file') for d in contents]}")
+                    return None
             else:
-                # Try alternative path (as per guide)
-                alt_paths = list(extracted_dir.rglob(f"{driver}/*ARM64*"))
-                if alt_paths:
+                extracted_dir = extracted_dirs[0]
+                print(f"Found extracted directory: {extracted_dir.name}")
+            
+            # Copy each driver (as per guide: cp -R "$DRIVER_PATH"/* "WinPEDrivers/$driver/")
+            drivers_copied = 0
+            drivers_missing = []
+            
+            for driver in self.drivers:
+                # As per guide: DRIVER_PATH="$EXTRACTED_DIR/$driver/w11/ARM64"
+                driver_path = extracted_dir / driver / "w11" / "ARM64"
+                print(f"Checking driver {driver} at: {driver_path}")
+                
+                if driver_path.exists() and driver_path.is_dir():
+                    # As per guide: mkdir -p "WinPEDrivers/$driver"
                     dest = winpe_drivers / driver
                     dest.mkdir(exist_ok=True)
+                    
+                    # As per guide: cp -R "$DRIVER_PATH"/* "WinPEDrivers/$driver/"
                     try:
-                        shutil.copytree(alt_paths[0], dest, dirs_exist_ok=True)
-                        print(f"✓ Copied {driver} from alternative path: {alt_paths[0]}")
+                        result = subprocess.run(
+                            ["cp", "-R", f"{driver_path}/*", str(dest) + "/"],
+                            shell=True,
+                            capture_output=True,
+                            text=True,
+                            check=True
+                        )
+                        print(f"✓ Copied {driver}")
                         drivers_copied += 1
+                    except subprocess.CalledProcessError as e:
+                        print(f"ERROR copying {driver}: {e}")
+                        print(f"stderr: {e.stderr}")
+                        drivers_missing.append(f"{driver} (copy error: {e.stderr})")
                     except Exception as e:
-                        print(f"ERROR copying {driver} from alt path: {e}")
-                        drivers_missing.append(f"{driver} (alt path copy error: {e})")
+                        print(f"ERROR copying {driver}: {e}")
+                        drivers_missing.append(f"{driver} (copy error: {e})")
                 else:
-                    print(f"WARNING: {driver} not found at {driver_path} and no alternative path found")
-                    drivers_missing.append(f"{driver} (not found)")
-        
-        # Verify drivers were copied (as per guide)
-        if not any(winpe_drivers.iterdir()):
-            print(f"ERROR: WinPEDrivers directory is empty after copying")
-            print(f"Expected drivers: {self.drivers}")
-            print(f"Drivers copied: {drivers_copied}")
-            print(f"Drivers missing: {drivers_missing}")
-            return None
-        
-        print(f"✓ WinPE drivers prepared: {drivers_copied}/{len(self.drivers)} drivers copied")
-        if drivers_missing:
-            print(f"WARNING: Missing drivers: {drivers_missing}")
-        
-        return winpe_drivers
+                    # Try alternative path (as per guide)
+                    print(f"Warning: {driver} not found at {driver_path}")
+                    alt_paths = list(extracted_dir.rglob(f"{driver}/*ARM64*"))
+                    if alt_paths:
+                        dest = winpe_drivers / driver
+                        dest.mkdir(exist_ok=True)
+                        try:
+                            result = subprocess.run(
+                                ["cp", "-R", f"{alt_paths[0]}/*", str(dest) + "/"],
+                                shell=True,
+                                capture_output=True,
+                                text=True,
+                                check=True
+                            )
+                            print(f"✓ Copied {driver} from alternative path: {alt_paths[0]}")
+                            drivers_copied += 1
+                        except subprocess.CalledProcessError as e:
+                            print(f"ERROR copying {driver} from alt path: {e}")
+                            print(f"stderr: {e.stderr}")
+                            drivers_missing.append(f"{driver} (alt path copy error: {e.stderr})")
+                        except Exception as e:
+                            print(f"ERROR copying {driver} from alt path: {e}")
+                            drivers_missing.append(f"{driver} (alt path copy error: {e})")
+                    else:
+                        print(f"WARNING: {driver} not found at {driver_path} and no alternative path found")
+                        drivers_missing.append(f"{driver} (not found)")
+            
+            # Verify drivers were copied (as per guide: ls -la WinPEDrivers/)
+            winpe_contents = list(winpe_drivers.iterdir())
+            print(f"WinPEDrivers contents: {[d.name for d in winpe_contents]}")
+            
+            if not winpe_contents:
+                print(f"ERROR: WinPEDrivers directory is empty after copying")
+                print(f"Expected drivers: {self.drivers}")
+                print(f"Drivers copied: {drivers_copied}")
+                print(f"Drivers missing: {drivers_missing}")
+                return None
+            
+            print(f"✓ WinPE drivers prepared: {drivers_copied}/{len(self.drivers)} drivers copied")
+            if drivers_missing:
+                print(f"WARNING: Missing drivers: {drivers_missing}")
+            
+            # Return absolute path
+            return winpe_drivers.resolve()
+            
+        finally:
+            os.chdir(original_cwd)
     
     def _inject_drivers_into_boot_wim(self, iso_extracted: Path, winpe_drivers: Path, drivers_temp: Path) -> bool:
         """Inject drivers into boot.wim - matches setup guide Step 8."""
