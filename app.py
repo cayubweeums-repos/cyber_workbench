@@ -1,6 +1,7 @@
 """Main Flet application for VM Manager."""
 
 import flet as ft
+import math
 import os
 import sys
 from pathlib import Path
@@ -68,9 +69,10 @@ class VMManagerApp:
         main_content = self.build_vm_list_view()
         
         # Wrap content in container for transformation (flip page upside down)
+        # rotate takes radians: 180 degrees = math.pi radians
         content_container = ft.Container(
             content=self.apply_page_transform(main_content),
-            transform=ft.transform.rotate(180 if self.advanced_mode else 0),
+            rotate=math.pi if self.advanced_mode else 0,
             alignment=ft.alignment.center,
             expand=True
         )
@@ -105,9 +107,10 @@ class VMManagerApp:
         """Apply text reversal transform if advanced mode is enabled."""
         if self.advanced_mode:
             # Wrap text in container with scaleX(-1) to reverse it horizontally
+            # Use Scale object with scale_x=-1 for horizontal reversal
             return ft.Container(
                 content=text_control,
-                transform=ft.transform.scale(x=-1),
+                scale=ft.transform.Scale(scale_x=-1),
                 alignment=ft.alignment.center
             )
         return text_control
