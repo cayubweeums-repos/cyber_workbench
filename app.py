@@ -234,12 +234,12 @@ class VMManagerApp:
                             ),
                             ft.OutlinedButton(
                                 "Edit",
-                                color=COLOR_ACCENT,
+                                style=ft.ButtonStyle(color=COLOR_ACCENT),
                                 on_click=lambda e, name=vm_name: self.show_edit_dialog(name)
                             ),
                             ft.OutlinedButton(
                                 "Delete",
-                                color=COLOR_ACCENT,
+                                style=ft.ButtonStyle(color=COLOR_ACCENT),
                                 on_click=lambda e, name=vm_name: self.show_delete_dialog(name)
                             )
                         ],
