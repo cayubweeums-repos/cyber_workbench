@@ -449,10 +449,23 @@ class VMOperations:
     
     def _prepare_winpe_drivers(self, drivers_temp: Path) -> Optional[Path]:
         """Prepare WinPE drivers directory structure - matches setup guide Step 8 exactly."""
-        # Change to drivers_temp directory (as per guide: cd drivers-temp)
-        original_cwd = Path.cwd()
         import os
-        
+        original_cwd = Path.cwd()
+
+        def _copy_driver_contents(src: Path, dest: Path) -> bool:
+            """Copy all contents of src directory into dest."""
+            try:
+                for item in src.iterdir():
+                    target = dest / item.name
+                    if item.is_dir():
+                        shutil.copytree(item, target, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(item, target)
+                return True
+            except Exception as copy_err:
+                print(f"ERROR copying contents from {src} to {dest}: {copy_err}")
+                return False
+
         try:
             os.chdir(drivers_temp)
             print(f"Changed to drivers-temp directory: {os.getcwd()}")
@@ -499,24 +512,12 @@ class VMOperations:
                     dest = winpe_drivers / driver
                     dest.mkdir(exist_ok=True)
                     
-                    # As per guide: cp -R "$DRIVER_PATH"/* "WinPEDrivers/$driver/"
-                    try:
-                        result = subprocess.run(
-                            ["cp", "-R", f"{driver_path}/*", str(dest) + "/"],
-                            shell=True,
-                            capture_output=True,
-                            text=True,
-                            check=True
-                        )
+                    # Copy entire contents of driver_path into destination
+                    if _copy_driver_contents(driver_path, dest):
                         print(f"✓ Copied {driver}")
                         drivers_copied += 1
-                    except subprocess.CalledProcessError as e:
-                        print(f"ERROR copying {driver}: {e}")
-                        print(f"stderr: {e.stderr}")
-                        drivers_missing.append(f"{driver} (copy error: {e.stderr})")
-                    except Exception as e:
-                        print(f"ERROR copying {driver}: {e}")
-                        drivers_missing.append(f"{driver} (copy error: {e})")
+                    else:
+                        drivers_missing.append(f"{driver} (copy error)")
                 else:
                     # Try alternative path (as per guide)
                     print(f"Warning: {driver} not found at {driver_path}")
@@ -524,23 +525,12 @@ class VMOperations:
                     if alt_paths:
                         dest = winpe_drivers / driver
                         dest.mkdir(exist_ok=True)
-                        try:
-                            result = subprocess.run(
-                                ["cp", "-R", f"{alt_paths[0]}/*", str(dest) + "/"],
-                                shell=True,
-                                capture_output=True,
-                                text=True,
-                                check=True
-                            )
-                            print(f"✓ Copied {driver} from alternative path: {alt_paths[0]}")
+                        alt_src = alt_paths[0]
+                        if _copy_driver_contents(alt_src, dest):
+                            print(f"✓ Copied {driver} from alternative path: {alt_src}")
                             drivers_copied += 1
-                        except subprocess.CalledProcessError as e:
-                            print(f"ERROR copying {driver} from alt path: {e}")
-                            print(f"stderr: {e.stderr}")
-                            drivers_missing.append(f"{driver} (alt path copy error: {e.stderr})")
-                        except Exception as e:
-                            print(f"ERROR copying {driver} from alt path: {e}")
-                            drivers_missing.append(f"{driver} (alt path copy error: {e})")
+                        else:
+                            drivers_missing.append(f"{driver} (alt path copy error)")
                     else:
                         print(f"WARNING: {driver} not found at {driver_path} and no alternative path found")
                         drivers_missing.append(f"{driver} (not found)")
@@ -572,6 +562,19 @@ class VMOperations:
         if not boot_wim.exists():
             print(f"ERROR: boot.wim not found at {boot_wim}")
             return False
+
+        def _wim_has_index(index: str) -> bool:
+            """Check if boot.wim has the specified index."""
+            try:
+                result = subprocess.run(
+                    ["wimlib-imagex", "info", "boot.wim", index],
+                    capture_output=True,
+                    text=True
+                )
+                return result.returncode == 0
+            except Exception as e:
+                print(f"ERROR checking boot.wim index {index}: {e}")
+                return False
         
         try:
             # Change to sources directory (as per guide)
@@ -582,18 +585,10 @@ class VMOperations:
                 import os
                 os.chdir(sources_dir)
                 
-                # Check which indices exist (as per guide)
-                result = subprocess.run(
-                    ["wimlib-imagex", "info", "boot.wim"],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                
-                print(f"boot.wim info: {result.stdout[:200]}...")
-                
-                has_index_1 = "Image Index: 1" in result.stdout
-                has_index_2 = "Image Index: 2" in result.stdout
+                # Check which indices exist (as per guide) using helper
+                has_index_1 = _wim_has_index("1")
+                has_index_2 = _wim_has_index("2")
+                print(f"boot.wim index availability -> index1: {has_index_1}, index2: {has_index_2}")
                 
                 # Calculate relative path from sources to drivers (as per guide: ../../drivers-temp/WinPEDrivers)
                 # From iso-extracted/sources, we go up two levels (../../) to get to temp dir, then drivers-temp/WinPEDrivers
