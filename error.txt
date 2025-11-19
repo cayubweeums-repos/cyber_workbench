@@ -1,52 +1,53 @@
-ut at: vioinput/w11/ARM64
-✓ Copied vioinput
-Checking driver viogpudo at: viogpudo/w11/ARM64
-✓ Copied viogpudo
-Checking driver vioserial at: vioserial/w11/ARM64
-✓ Copied vioserial
-Checking driver qemupciserial at: qemupciserial/w11/ARM64
-Warning: qemupciserial not found at qemupciserial/w11/ARM64
-WARNING: qemupciserial not found at qemupciserial/w11/ARM64 and no alternative path found
-WinPEDrivers contents: ['vioscsi', 'Balloon', 'vioinput', 'vioserial', 'NetKVM', 'viostor', 'viogpudo', 'viomem', 'viorng']
-✓ WinPE drivers prepared: 9/16 drivers copied
+ WinPE drivers prepared: 9/16 drivers copied
 WARNING: Missing drivers: ['qxl (not found)', 'viofs (not found)', 'sriov (not found)', 'smbus (not found)', 'qxldod (not found)', 'pvpanic (not found)', 'qemupciserial (not found)']
-✓ WinPE drivers prepared at /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/drivers-temp/WinPEDrivers
+✓ WinPE drivers prepared at /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/drivers-temp/WinPEDrivers
 Step 4: Injecting drivers into boot.wim...
 boot.wim index availability -> index1: True, index2: True
 Using relative drivers path (from sources): ../../drivers-temp/WinPEDrivers
-Verified absolute path exists: /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/drivers-temp/WinPEDrivers
+Verified absolute path exists: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/drivers-temp/WinPEDrivers
 Injecting drivers into boot.wim index 1 (WinPE)...
 ✓ Drivers injected into index 1
 Injecting drivers into boot.wim index 2 (Windows Setup)...
 ✓ Drivers injected into index 2
 ✓ Drivers injected into boot.wim
 Step 5: Copying drivers to OEM directory...
-Changed to sources directory: /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/iso-extracted/sources
-Creating OEM directory: /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/iso-extracted/$OEM$/$$/Drivers
-Copying drivers from /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/drivers-temp/WinPEDrivers to /Users/caleb/code/cyderes/cyber_workbench/vms/trdyfcgvh/temp-iso-prep/iso-extracted/$OEM$/$$/Drivers
+Changed to sources directory: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted/sources
+Creating OEM directory: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted/$OEM$/$$/Drivers
+Copying drivers from /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/drivers-temp/WinPEDrivers to /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted/$OEM$/$$/Drivers
 ✓ Drivers copied to OEM directory (9 items)
 OEM directory contents: ['vioscsi', 'Balloon', 'vioinput', 'vioserial', 'NetKVM', 'viostor', 'viogpudo', 'viomem', 'viorng']
 ✓ Drivers copied to OEM directory
 Step 6: Injecting autounattend.xml...
-ERROR injecting autounattend.xml: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
+Using index 2 (Windows Setup)
+Injecting autounattend.xml into boot.wim index 2...
+✓ Successfully added autounattend.xml
+✓ Also added as autounattend.dat
+✓ Verified: autounattend.xml found in index
+✓ autounattend.xml injected
+Step 7: Rebuilding ISO...
+Running: sudo mkisofs -o /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/win11-arm64-modified.iso -b boot/etfsboot.com -no-emul-boot -c BOOT.CAT -iso-level 4 -J -l -D -N -joliet-long -relaxed-filenames -V Windows -udf -boot-info-table -eltorito-alt-boot -eltorito-boot efi/microsoft/boot/efisys_noprompt.bin -no-emul-boot /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted
+✓ ISO rebuilt successfully (6.81 GB)
+✓ Modified ISO created: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/win11-arm64-modified.iso
+Cleaning up temp directory: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep
+Error preparing ISO: [Errno 13] Permission denied: '/Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted/efi/microsoft/boot'
 Traceback (most recent call last):
-  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 779, in _inject_autounattend
-    result = subprocess.run(
-        ["wimlib-imagex", "info", "-xml", "boot.wim"],
-        capture_output=True,
-        text=True
-    )
-  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 556, in run
-    stdout, stderr = process.communicate(input, timeout=timeout)
-                     ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 1220, in communicate
-    stdout, stderr = self._communicate(input, endtime, timeout)
-                     ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 2167, in _communicate
-    stdout = self._translate_newlines(stdout,
-                                      self.stdout.encoding,
-                                      self.stdout.errors)
-  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 1098, in _translate_newlines
-    data = data.decode(encoding, errors)
-UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 0: invalid start byte
-ERROR: Failed to inject autounattend.xml
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 277, in prepare_iso_for_vm
+    shutil.rmtree(vm_temp_dir)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/shutil.py", line 852, in rmtree
+    _rmtree_impl(path, dir_fd, onexc)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/shutil.py", line 721, in _rmtree_safe_fd
+    _rmtree_safe_fd_step(stack, onexc)
+    ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/shutil.py", line 802, in _rmtree_safe_fd_step
+    onexc(func, path, err)
+    ~~~~~^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/shutil.py", line 795, in _rmtree_safe_fd_step
+    onexc(os.unlink, fullname, err)
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/shutil.py", line 791, in _rmtree_safe_fd_step
+    os.unlink(entry.name, dir_fd=topfd)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+PermissionError: [Errno 13] Permission denied: '/Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep/iso-extracted/efi/microsoft/boot'
+Temp directory kept for debugging: /Users/caleb/code/cyderes/cyber_workbench/vms/kjhgbn/temp-iso-prep
