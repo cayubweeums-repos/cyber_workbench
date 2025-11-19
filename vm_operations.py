@@ -287,8 +287,11 @@ class VMOperations:
                 return False
             
             print(f"Copying files from {mount_point} to {extract_dir}")
+            # Use string command with shell=True to allow glob expansion (as per guide)
+            cmd = f"cp -R /Volumes/WIN11_ARM64/* {extract_dir}/"
+            print(f"Running: {cmd}")
             result = subprocess.run(
-                ["cp", "-R", f"{mount_point}/*", str(extract_dir) + "/"],
+                cmd,
                 shell=True,
                 capture_output=True,
                 text=True,

@@ -36,6 +36,9 @@ class VMManagerApp:
             # Track VM status for real-time updates
             self.vm_status = {}  # {vm_name: "status_text"}
             
+            # Advanced mode state
+            self.advanced_mode = False
+            
             # Set up routing
             self.page.on_route_change = self.route_change
             self.page.on_view_pop = self.view_pop
@@ -53,7 +56,25 @@ class VMManagerApp:
         """Handle route changes and build views."""
         self.page.views.clear()
         
+        # Advanced mode toggle
+        advanced_toggle = ft.Switch(
+            label="Advanced Mode",
+            value=self.advanced_mode,
+            label_style=ft.TextStyle(color=COLOR_ACCENT),
+            on_change=self.toggle_advanced_mode
+        )
+        
         # Main VM list view
+        main_content = self.build_vm_list_view()
+        
+        # Wrap content in container for transformation (flip page upside down)
+        content_container = ft.Container(
+            content=self.apply_page_transform(main_content),
+            transform=ft.transform.rotate(180 if self.advanced_mode else 0),
+            alignment=ft.alignment.center,
+            expand=True
+        )
+        
         self.page.views.append(
             ft.View(
                 "/",
@@ -61,9 +82,10 @@ class VMManagerApp:
                     ft.AppBar(
                         title=ft.Text("", color=COLOR_TEXT),
                         bgcolor=COLOR_BG,
-                        color=COLOR_ACCENT
+                        color=COLOR_ACCENT,
+                        actions=[advanced_toggle]
                     ),
-                    self.build_vm_list_view()
+                    content_container
                 ],
                 bgcolor=COLOR_BG,
                 padding=20
@@ -71,6 +93,49 @@ class VMManagerApp:
         )
         
         self.page.update()
+    
+    def toggle_advanced_mode(self, e):
+        """Toggle advanced mode (reverse text and flip page)."""
+        self.advanced_mode = e.control.value
+        print(f"Advanced mode: {self.advanced_mode}")
+        # Rebuild the view to apply transformations
+        self.page.go(self.page.route)
+    
+    def apply_text_transform(self, text_control):
+        """Apply text reversal transform if advanced mode is enabled."""
+        if self.advanced_mode:
+            # Wrap text in container with scaleX(-1) to reverse it horizontally
+            return ft.Container(
+                content=text_control,
+                transform=ft.transform.scale(x=-1),
+                alignment=ft.alignment.center
+            )
+        return text_control
+    
+    def apply_page_transform(self, control):
+        """Recursively apply text reversal to all text elements in a control tree."""
+        if not self.advanced_mode:
+            return control
+        
+        # If it's a Text control, wrap it
+        if isinstance(control, ft.Text):
+            return self.apply_text_transform(control)
+        
+        # If it has a content attribute, transform it recursively
+        if hasattr(control, 'content') and control.content is not None:
+            if isinstance(control.content, list):
+                # For controls with lists of children
+                transformed_controls = [self.apply_page_transform(c) for c in control.content]
+                control.content = transformed_controls
+            else:
+                # For controls with single content
+                control.content = self.apply_page_transform(control.content)
+        
+        # If it has a controls attribute (like Column, Row), transform those
+        if hasattr(control, 'controls') and control.controls is not None:
+            control.controls = [self.apply_page_transform(c) for c in control.controls]
+        
+        return control
     
     def view_pop(self, view):
         """Handle view pop (back button)."""
