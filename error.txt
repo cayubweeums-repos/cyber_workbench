@@ -1,15 +1,3 @@
-Found driver directories directly: ['vioscsi', 'Balloon', 'vioinput', 'vioserial', 'NetKVM', 'viostor', 'viogpudo', 'viomem', 'viorng']
-✓ Drivers extracted to /Users/caleb/code/cyderes/cyber_workbench/vms/bvuy/temp-iso-prep/drivers-temp (14 items)
-✓ VirtIO drivers downloaded and extracted
-Step 3: Preparing WinPE drivers...
-Changed to drivers-temp directory: /Users/caleb/code/cyderes/cyber_workbench/vms/bvuy/temp-iso-prep/drivers-temp
-Created WinPEDrivers directory: /Users/caleb/code/cyderes/cyber_workbench/vms/bvuy/temp-iso-prep/drivers-temp/WinPEDrivers
-Contents in drivers-temp: ['vioscsi', 'Balloon', 'virtio-win_license.txt', 'vioinput', 'vioserial', 'NetKVM', 'viostor', 'cert', 'viogpudo', 'WinPEDrivers', 'data', 'ARM64', 'viomem', 'debug', 'viorng']
-Using current directory as extracted directory (drivers are directly here)
-Checking driver qxl at: qxl/w11/ARM64
-Warning: qxl not found at qxl/w11/ARM64
-WARNING: qxl not found at qxl/w11/ARM64 and no alternative path found
-Checking driver viofs at: viofs/w11/ARM64
 Warning: viofs not found at viofs/w11/ARM64
 WARNING: viofs not found at viofs/w11/ARM64 and no alternative path found
 Checking driver sriov at: sriov/w11/ARM64
@@ -22,71 +10,52 @@ Checking driver qxldod at: qxldod/w11/ARM64
 Warning: qxldod not found at qxldod/w11/ARM64
 WARNING: qxldod not found at qxldod/w11/ARM64 and no alternative path found
 Checking driver viorng at: viorng/w11/ARM64
-ERROR copying viorng: Command '['cp', '-R', 'viorng/w11/ARM64/*', 'WinPEDrivers/viorng/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied viorng
 Checking driver viostor at: viostor/w11/ARM64
-ERROR copying viostor: Command '['cp', '-R', 'viostor/w11/ARM64/*', 'WinPEDrivers/viostor/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied viostor
 Checking driver viomem at: viomem/w11/ARM64
-ERROR copying viomem: Command '['cp', '-R', 'viomem/w11/ARM64/*', 'WinPEDrivers/viomem/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied viomem
 Checking driver NetKVM at: NetKVM/w11/ARM64
-ERROR copying NetKVM: Command '['cp', '-R', 'NetKVM/w11/ARM64/*', 'WinPEDrivers/NetKVM/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied NetKVM
 Checking driver Balloon at: Balloon/w11/ARM64
-ERROR copying Balloon: Command '['cp', '-R', 'Balloon/w11/ARM64/*', 'WinPEDrivers/Balloon/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied Balloon
 Checking driver vioscsi at: vioscsi/w11/ARM64
-ERROR copying vioscsi: Command '['cp', '-R', 'vioscsi/w11/ARM64/*', 'WinPEDrivers/vioscsi/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied vioscsi
 Checking driver pvpanic at: pvpanic/w11/ARM64
 Warning: pvpanic not found at pvpanic/w11/ARM64
 WARNING: pvpanic not found at pvpanic/w11/ARM64 and no alternative path found
 Checking driver vioinput at: vioinput/w11/ARM64
-ERROR copying vioinput: Command '['cp', '-R', 'vioinput/w11/ARM64/*', 'WinPEDrivers/vioinput/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied vioinput
 Checking driver viogpudo at: viogpudo/w11/ARM64
-ERROR copying viogpudo: Command '['cp', '-R', 'viogpudo/w11/ARM64/*', 'WinPEDrivers/viogpudo/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied viogpudo
 Checking driver vioserial at: vioserial/w11/ARM64
-ERROR copying vioserial: Command '['cp', '-R', 'vioserial/w11/ARM64/*', 'WinPEDrivers/vioserial/']' returned non-zero exit status 64.
-stderr: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file
-       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory
-
+✓ Copied vioserial
 Checking driver qemupciserial at: qemupciserial/w11/ARM64
 Warning: qemupciserial not found at qemupciserial/w11/ARM64
 WARNING: qemupciserial not found at qemupciserial/w11/ARM64 and no alternative path found
 WinPEDrivers contents: ['vioscsi', 'Balloon', 'vioinput', 'vioserial', 'NetKVM', 'viostor', 'viogpudo', 'viomem', 'viorng']
-✓ WinPE drivers prepared: 0/16 drivers copied
-WARNING: Missing drivers: ['qxl (not found)', 'viofs (not found)', 'sriov (not found)', 'smbus (not found)', 'qxldod (not found)', 'viorng (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'viostor (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'viomem (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'NetKVM (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'Balloon (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'vioscsi (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'pvpanic (not found)', 'vioinput (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'viogpudo (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'vioserial (copy error: usage: cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file target_file\n       cp [-R [-H | -L | -P]] [-fi | -n] [-aclpSsvXx] source_file ... target_directory\n)', 'qemupciserial (not found)']
-✓ WinPE drivers prepared at /Users/caleb/code/cyderes/cyber_workbench/vms/bvuy/temp-iso-prep/drivers-temp/WinPEDrivers
+✓ WinPE drivers prepared: 9/16 drivers copied
+WARNING: Missing drivers: ['qxl (not found)', 'viofs (not found)', 'sriov (not found)', 'smbus (not found)', 'qxldod (not found)', 'pvpanic (not found)', 'qemupciserial (not found)']
+✓ WinPE drivers prepared at /Users/caleb/code/cyderes/cyber_workbench/vms/ycfghvj/temp-iso-prep/drivers-temp/WinPEDrivers
 Step 4: Injecting drivers into boot.wim...
-boot.wim info: WIM Information:
-----------------
-Path:           boot.wim
-GUID:           0xc540c79da800354cac81214f76839bef
-Version:        68864
-Image Count:    2
-Compression:    LZX
-Chunk Size:     32768 bytes
-Pa...
+boot.wim index availability -> index1: True, index2: True
 Using relative drivers path (from sources): ../../drivers-temp/WinPEDrivers
-Verified absolute path exists: /Users/caleb/code/cyderes/cyber_workbench/vms/bvuy/temp-iso-prep/drivers-temp/WinPEDrivers
-ERROR: No valid image indices found in boot.wim
+Verified absolute path exists: /Users/caleb/code/cyderes/cyber_workbench/vms/ycfghvj/temp-iso-prep/drivers-temp/WinPEDrivers
+Injecting drivers into boot.wim index 1 (WinPE)...
+ERROR injecting drivers: stdout and stderr arguments may not be used with capture_output.
+Traceback (most recent call last):
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 610, in _inject_drivers_into_boot_wim
+    subprocess.run(
+    ~~~~~~~~~~~~~~^
+        ["wimlib-imagex", "update", "boot.wim", "1",
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        stderr=subprocess.DEVNULL
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.0_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 549, in run
+    raise ValueError('stdout and stderr arguments may not be used '
+                     'with capture_output.')
+ValueError: stdout and stderr arguments may not be used with capture_output.
 ERROR: Failed to inject drivers into boot.wim
