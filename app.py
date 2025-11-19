@@ -22,6 +22,7 @@ class VMManagerApp:
     def __init__(self, page: ft.Page):
         try:
             self.page = page
+            self.page.title = "VM Manager"
             self.repo_root = Path(__file__).parent.absolute()
             print(f"Repo root: {self.repo_root}")
             
@@ -32,8 +33,13 @@ class VMManagerApp:
             self.vm_operations = VMOperations(str(self.repo_root))
             
             self.vm_list_view = None
-            print("Setting up UI...")
-            self.setup_ui()
+            
+            # Set up routing
+            self.page.on_route_change = self.route_change
+            self.page.on_view_pop = self.view_pop
+            
+            print("Setting up routing...")
+            self.page.go(self.page.route)
             print("UI setup complete")
         except Exception as e:
             print(f"Error in VMManagerApp.__init__: {e}")
@@ -41,17 +47,38 @@ class VMManagerApp:
             traceback.print_exc()
             raise
     
-    def setup_ui(self):
-        """Setup the UI."""
-        self.page.title = "VM Manager"
-        self.page.bgcolor = COLOR_BG
-        self.page.padding = 20
-        self.page.window_width = 900
-        self.page.window_height = 700
-        self.page.window_min_width = 600
-        self.page.window_min_height = 400
+    def route_change(self, route):
+        """Handle route changes and build views."""
+        self.page.views.clear()
         
-        # Header
+        # Main VM list view
+        self.page.views.append(
+            ft.View(
+                "/",
+                [
+                    ft.AppBar(
+                        title=ft.Text("VM Manager", color=COLOR_TEXT),
+                        bgcolor=COLOR_BG,
+                        color=COLOR_ACCENT
+                    ),
+                    self.build_vm_list_view()
+                ],
+                bgcolor=COLOR_BG,
+                padding=20
+            )
+        )
+        
+        self.page.update()
+    
+    def view_pop(self, view):
+        """Handle view pop (back button)."""
+        self.page.views.pop()
+        top_view = self.page.views[-1]
+        self.page.go(top_view.route)
+    
+    def build_vm_list_view(self):
+        """Build the main VM list view content."""
+        # Header with Create button
         header = ft.Container(
             content=ft.Row(
                 controls=[
@@ -84,14 +111,19 @@ class VMManagerApp:
         
         self.refresh_vm_list()
         
-        # Main content
-        self.page.add(
-            header,
-            self.vm_list_view
+        return ft.Column(
+            controls=[
+                header,
+                self.vm_list_view
+            ],
+            expand=True
         )
     
     def refresh_vm_list(self):
         """Refresh the VM list display."""
+        if self.vm_list_view is None:
+            return
+        
         self.vm_list_view.controls.clear()
         
         vms = self.vm_manager.list_vms()
@@ -271,9 +303,7 @@ class VMManagerApp:
                         self.show_error("Disk size must be at least 20 GB")
                         return
                     
-                    dialog.open = False
-                    self.page.update()
-                    
+                    self.page.close(dialog)
                     self.create_vm_workflow(name, cpu_cores, ram_gb, disk_gb)
                 except ValueError:
                     self.show_error("Invalid numeric value")
@@ -304,7 +334,7 @@ class VMManagerApp:
                 actions=[
                     ft.TextButton(
                         "Cancel", 
-                        on_click=lambda e: (setattr(dialog, "open", False), self.page.update())
+                        on_click=lambda e: self.page.close(dialog)
                     ),
                     ft.ElevatedButton(
                         "Create",
@@ -318,27 +348,9 @@ class VMManagerApp:
                 shape=ft.RoundedRectangleBorder(radius=8)
             )
             
-            # Close any existing dialog first
-            if self.page.dialog:
-                self.page.dialog.open = False
-                self.page.update()
-            
-            # Set dialog and open it
-            self.page.dialog = dialog
-            dialog.open = True
-            print(f"Dialog state - open: {dialog.open}, modal: {dialog.modal}")
-            print(f"Page dialog set: {self.page.dialog is not None}")
-            print(f"Page window visible: {self.page.window.visible if hasattr(self.page.window, 'visible') else 'unknown'}")
-            
-            # Force update
-            self.page.update()
-            
-            # Small delay then update again to ensure dialog renders
-            import time
-            time.sleep(0.1)
-            self.page.update()
-            
-            print("Create VM dialog opened and page updated")
+            # Open dialog using page.open()
+            self.page.open(dialog)
+            print("Create VM dialog opened")
         except Exception as ex:
             print(f"Error showing create dialog: {ex}")
             import traceback
@@ -413,8 +425,7 @@ class VMManagerApp:
                 cpu_cores = int(cpu_field.value)
                 ram_gb = int(ram_field.value)
                 
-                dialog.open = False
-                self.page.update()
+                self.page.close(dialog)
                 
                 if self.vm_manager.edit_vm(vm_name, new_name, cpu_cores, ram_gb):
                     self.show_success(f"VM '{new_name}' updated successfully")
@@ -442,7 +453,7 @@ class VMManagerApp:
                 padding=20
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, "open", False) or self.page.update()),
+                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Save",
                     bgcolor=COLOR_ACCENT,
@@ -454,15 +465,12 @@ class VMManagerApp:
             actions_alignment=ft.MainAxisAlignment.END
         )
         
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.page.open(dialog)
     
     def show_delete_dialog(self, vm_name: str):
         """Show confirmation dialog to delete a VM."""
         def delete_vm(e):
-            dialog.open = False
-            self.page.update()
+            self.page.close(dialog)
             
             if self.vm_manager.delete_vm(vm_name):
                 self.show_success(f"VM '{vm_name}' deleted successfully")
@@ -478,7 +486,7 @@ class VMManagerApp:
                 color=COLOR_TEXT_SECONDARY
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, "open", False) or self.page.update()),
+                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Delete",
                     bgcolor="#ff4444",
@@ -490,9 +498,7 @@ class VMManagerApp:
             actions_alignment=ft.MainAxisAlignment.END
         )
         
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.page.open(dialog)
     
     def toggle_vm(self, vm_name: str):
         """Start or stop a VM."""
@@ -546,44 +552,38 @@ class VMManagerApp:
             # Step 1: Create VM config
             update_progress("Creating VM configuration...")
             if not self.vm_manager.create_vm(name, cpu_cores, ram_gb, disk_gb):
-                progress_dialog.open = False
-                self.page.update()
+                self.page.close(progress_dialog)
                 self.show_error(f"Failed to create VM '{name}'. It may already exist.")
                 return
             
             # Step 2: Create disk image
             update_progress("Creating disk image...")
             if not self.vm_operations.create_vm_disk(name, disk_gb):
-                progress_dialog.open = False
-                self.page.update()
+                self.page.close(progress_dialog)
                 self.show_error("Failed to create disk image")
                 return
             
             # Step 3: Download ISO if needed
             update_progress("Checking Windows ISO...")
             if not self.vm_operations.download_windows_iso():
-                progress_dialog.open = False
-                self.page.update()
+                self.page.close(progress_dialog)
                 self.show_error("Failed to download Windows ISO")
                 return
             
             # Step 4: Prepare modified ISO
             update_progress("Preparing modified ISO (this may take several minutes)...")
             if not self.vm_operations.prepare_iso_for_vm(name, update_progress):
-                progress_dialog.open = False
-                self.page.update()
+                self.page.close(progress_dialog)
                 self.show_error("Failed to prepare modified ISO")
                 return
             
             # Success
-            progress_dialog.open = False
-            self.page.update()
+            self.page.close(progress_dialog)
             self.show_success(f"VM '{name}' created successfully!")
             self.refresh_vm_list()
             
         except Exception as e:
-            progress_dialog.open = False
-            self.page.update()
+            self.page.close(progress_dialog)
             self.show_error(f"Error creating VM: {str(e)}")
     
     def show_error(self, message: str):
@@ -597,16 +597,14 @@ class VMManagerApp:
                     "OK",
                     bgcolor=COLOR_ACCENT,
                     color=COLOR_BG,
-                    on_click=lambda e: setattr(dialog, "open", False) or self.page.update()
+                    on_click=lambda e: self.page.close(dialog)
                 )
             ],
             bgcolor=COLOR_BG,
             actions_alignment=ft.MainAxisAlignment.END
         )
         
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.page.open(dialog)
     
     def show_success(self, message: str):
         """Show a success message."""
@@ -619,16 +617,14 @@ class VMManagerApp:
                     "OK",
                     bgcolor=COLOR_ACCENT,
                     color=COLOR_BG,
-                    on_click=lambda e: setattr(dialog, "open", False) or self.page.update()
+                    on_click=lambda e: self.page.close(dialog)
                 )
             ],
             bgcolor=COLOR_BG,
             actions_alignment=ft.MainAxisAlignment.END
         )
         
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.page.open(dialog)
 
 
 def main(page: ft.Page):
@@ -650,36 +646,5 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    # Ensure unbuffered output for debugging
-    import sys
-    try:
-        sys.stdout.reconfigure(line_buffering=True)
-        sys.stderr.reconfigure(line_buffering=True)
-    except AttributeError:
-        # Python < 3.7 doesn't have reconfigure
-        pass
-    
-    print("Starting Flet application...")
-    print(f"Python version: {sys.version}")
-    print(f"Flet version: {ft.__version__ if hasattr(ft, '__version__') else 'unknown'}")
-    
-    try:
-        # Try desktop app mode - ensure window is visible
-        print("Launching Flet in desktop app mode...")
-        ft.app(
-            target=main, 
-            view=ft.AppView.FLET_APP,
-            window_width=900,
-            window_height=700
-        )
-    except Exception as e:
-        print(f"Fatal error starting Flet: {e}")
-        import traceback
-        traceback.print_exc()
-        print("\nTrying web view as fallback...")
-        try:
-            ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=8550)
-        except Exception as e2:
-            print(f"Web view also failed: {e2}")
-            sys.exit(1)
+    ft.app(target=main)
 
