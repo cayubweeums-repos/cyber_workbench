@@ -76,11 +76,20 @@ class VMManagerApp:
             transformed_content = self.apply_page_transform(main_content)
             # Then wrap in container that rotates 180 degrees
             # Use Stack to ensure proper transformation bounds
+            # Rotate can be a number (radians) or Rotate object
+            # Try using the Rotate class directly - if it doesn't exist, use number
+            try:
+                Rotate = ft.transform.Rotate
+                rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
+            except AttributeError:
+                # If Rotate class doesn't exist, use number directly
+                rotate_obj = math.pi
+            
             content_container = ft.Stack(
                 controls=[
                     ft.Container(
                         content=transformed_content,
-                        rotate=ft.transform.Rotate(angle=math.pi, alignment=ft.alignment.center),
+                        rotate=rotate_obj,
                         alignment=ft.alignment.center,
                         expand=True
                     )
@@ -122,9 +131,24 @@ class VMManagerApp:
         if self.advanced_mode:
             # Wrap text in container with scaleX(-1) to reverse it horizontally
             # Use Scale object with scale_x=-1 for horizontal reversal
+            # Try using the Scale class directly - if it doesn't exist, create it manually
+            try:
+                Scale = ft.transform.Scale
+                scale_obj = Scale(scale_x=-1, scale_y=1)
+            except AttributeError:
+                # If Scale class doesn't exist, try creating it manually
+                from dataclasses import dataclass, field
+                @dataclass
+                class Scale:
+                    scale: float = field(default=None)
+                    scale_x: float = field(default=None)
+                    scale_y: float = field(default=None)
+                    alignment = field(default=None)
+                scale_obj = Scale(scale_x=-1, scale_y=1)
+            
             return ft.Container(
                 content=text_control,
-                scale=ft.transform.Scale(scale_x=-1),
+                scale=scale_obj,
                 alignment=ft.alignment.center
             )
         return text_control

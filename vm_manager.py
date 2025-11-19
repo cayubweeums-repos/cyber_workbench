@@ -156,10 +156,30 @@ class VMManager:
             self.stop_vm(name)
         
         # Remove directory and all contents
+        # Use sudo for deletion since some files may have been created with sudo
+        # (e.g., files in $OEM$ directories, modified ISOs, etc.)
         import shutil
         try:
-            shutil.rmtree(vm_dir)
-            return True
+            # First try without sudo
+            try:
+                shutil.rmtree(vm_dir)
+                print(f"✓ Deleted VM '{name}'")
+                return True
+            except PermissionError:
+                # If permission denied, use sudo
+                print(f"Permission denied, using sudo to delete '{name}'...")
+                result = subprocess.run(
+                    ["sudo", "rm", "-rf", str(vm_dir)],
+                    capture_output=True,
+                    text=True,
+                    check=True
+                )
+                print(f"✓ Deleted VM '{name}' with sudo")
+                return True
+        except subprocess.CalledProcessError as e:
+            print(f"Error deleting VM '{name}' with sudo: {e}")
+            print(f"stderr: {e.stderr}")
+            return False
         except Exception as e:
             print(f"Error deleting VM '{name}': {e}")
             return False
