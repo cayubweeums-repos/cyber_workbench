@@ -273,8 +273,26 @@ class VMOperations:
             print(f"✓ Modified ISO created: {modified_iso}")
             
             # Clean up temp directory after successful ISO creation
+            # Use sudo since some files were created with sudo (e.g., $OEM$ directories)
             print(f"Cleaning up temp directory: {vm_temp_dir}")
-            shutil.rmtree(vm_temp_dir)
+            try:
+                shutil.rmtree(vm_temp_dir)
+                print("✓ Temp directory cleaned up")
+            except PermissionError:
+                # If permission denied, use sudo to remove
+                print("Permission denied, using sudo to clean up temp directory...")
+                try:
+                    self._run_command(
+                        ["rm", "-rf", str(vm_temp_dir)],
+                        use_sudo=True,
+                        capture_output=True,
+                        text=True
+                    )
+                    print("✓ Temp directory cleaned up with sudo")
+                except (RuntimeError, subprocess.CalledProcessError) as e:
+                    # If sudo fails, just warn and keep the temp directory
+                    print(f"WARNING: Could not clean up temp directory with sudo: {e}")
+                    print(f"Temp directory kept for manual cleanup: {vm_temp_dir}")
             
             return True
             
@@ -630,21 +648,20 @@ class VMOperations:
                 print(f"Verified absolute path exists: {abs_path}")
                 
                 # Inject into index 1 (WinPE) if it exists (as per guide)
+                # Note: Guide shows index 1 does NOT use sudo (line 173), only index 2 uses sudo (line 180)
                 if has_index_1:
                     print("Injecting drivers into boot.wim index 1 (WinPE)...")
-                    # Delete existing (ignore errors)
-                    self._run_command(
+                    # Delete existing (ignore errors) - NO sudo for index 1
+                    subprocess.run(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
-                        use_sudo=True,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-                    # Add drivers
-                    result = self._run_command(
+                    # Add drivers - NO sudo for index 1 (as per guide line 173)
+                    result = subprocess.run(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", f"add {drivers_path_str} /\\$WinPEDriver\\$"],
-                        use_sudo=True,
                         capture_output=True,
                         text=True,
                         check=True
@@ -652,9 +669,10 @@ class VMOperations:
                     print("✓ Drivers injected into index 1")
                 
                 # Inject into index 2 (Windows Setup) if it exists (as per guide)
+                # Note: Guide shows index 2 DOES use sudo (line 180)
                 if has_index_2:
                     print("Injecting drivers into boot.wim index 2 (Windows Setup)...")
-                    # Delete existing (ignore errors)
+                    # Delete existing (ignore errors) - USE sudo for index 2
                     self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "2",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
@@ -662,7 +680,7 @@ class VMOperations:
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-                    # Add drivers
+                    # Add drivers - USE sudo for index 2 (as per guide line 180)
                     result = self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "2",
                          "--command", f"add {drivers_path_str} /\\$WinPEDriver\\$"],
@@ -673,6 +691,25 @@ class VMOperations:
                     )
                     print("✓ Drivers injected into index 2")
                 elif not has_index_1:
+                    # If index 2 doesn't exist, use index 1 with sudo (as per guide line 184-185)
+                    print("Only one image found, injecting into index 1 with sudo...")
+                    self._run_command(
+                        ["wimlib-imagex", "update", "boot.wim", "1",
+                         "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
+                        use_sudo=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                    result = self._run_command(
+                        ["wimlib-imagex", "update", "boot.wim", "1",
+                         "--command", f"add {drivers_path_str} /\\$WinPEDriver\\$"],
+                        use_sudo=True,
+                        capture_output=True,
+                        text=True,
+                        check=True
+                    )
+                    print("✓ Drivers injected into index 1 (with sudo)")
+                else:
                     # If index 2 doesn't exist and index 1 doesn't exist, error
                     print("ERROR: No valid image indices found in boot.wim")
                     return False
@@ -810,6 +847,7 @@ class VMOperations:
                     print("Using index 1 (only one image found)")
                 
                 # Backup existing autounattend.xml if it exists (as per guide)
+                # Note: Guide shows these commands do NOT use sudo (line 246-247)
                 subprocess.run(
                     ["wimlib-imagex", "extract", "boot.wim", index,
                      "/autounattend.xml", "--dest-dir=/tmp"],
