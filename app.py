@@ -33,6 +33,8 @@ class VMManagerApp:
             self.vm_operations = VMOperations(str(self.repo_root))
             
             self.vm_list_view = None
+            # Track VM status for real-time updates
+            self.vm_status = {}  # {vm_name: "status_text"}
             
             # Set up routing
             self.page.on_route_change = self.route_change
@@ -152,9 +154,21 @@ class VMManagerApp:
     
     def create_vm_card(self, vm_name: str, config: VMConfig) -> ft.Container:
         """Create a card for a VM."""
-        is_running = self.vm_manager.is_vm_running(vm_name)
-        status_text = "Running" if is_running else "Stopped"
-        status_color = COLOR_ACCENT if is_running else COLOR_TEXT_SECONDARY
+        # Check for custom status first (e.g., during creation)
+        if vm_name in self.vm_status:
+            status_text = self.vm_status[vm_name]
+            # Status colors for different states
+            if "Downloading" in status_text or "Preparing" in status_text or "Creating" in status_text:
+                status_color = COLOR_ACCENT  # Green for in-progress
+            elif status_text == "Running":
+                status_color = COLOR_ACCENT
+            else:
+                status_color = COLOR_TEXT_SECONDARY
+        else:
+            # Default status check
+            is_running = self.vm_manager.is_vm_running(vm_name)
+            status_text = "Running" if is_running else "Stopped"
+            status_color = COLOR_ACCENT if is_running else COLOR_TEXT_SECONDARY
         
         card = ft.Container(
             content=ft.Column(
@@ -176,7 +190,7 @@ class VMManagerApp:
                                     weight=ft.FontWeight.W_500
                                 ),
                                 padding=ft.padding.symmetric(horizontal=12, vertical=6),
-                                bgcolor=COLOR_ACCENT_DARK if is_running else COLOR_BG,
+                                bgcolor=COLOR_ACCENT_DARK if ("Running" in status_text or "Downloading" in status_text or "Preparing" in status_text or "Creating" in status_text) else COLOR_BG,
                                 border_radius=12
                             )
                         ],
@@ -243,7 +257,9 @@ class VMManagerApp:
                 hint_text="Enter VM name",
                 color=COLOR_TEXT,
                 bgcolor="#333333",
-                border_color=COLOR_ACCENT_DARK
+                border_color=COLOR_ACCENT_DARK,
+                label_style=ft.TextStyle(color=COLOR_ACCENT),
+                hint_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY)
             )
             
             cpu_field = ft.Slider(
@@ -285,7 +301,9 @@ class VMManagerApp:
                 value="64",
                 color=COLOR_TEXT,
                 bgcolor="#333333",
-                border_color=COLOR_ACCENT_DARK
+                border_color=COLOR_ACCENT_DARK,
+                label_style=ft.TextStyle(color=COLOR_ACCENT),
+                hint_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY)
             )
             
             def create_vm(e):
@@ -333,7 +351,8 @@ class VMManagerApp:
                 content=dialog_content,
                 actions=[
                     ft.TextButton(
-                        "Cancel", 
+                        "Cancel",
+                        color=COLOR_ACCENT,
                         on_click=lambda e: self.page.close(dialog)
                     ),
                     ft.ElevatedButton(
@@ -369,7 +388,9 @@ class VMManagerApp:
             value=config.name,
             color=COLOR_TEXT,
             bgcolor="#333333",
-            border_color=COLOR_ACCENT_DARK
+            border_color=COLOR_ACCENT_DARK,
+            label_style=ft.TextStyle(color=COLOR_ACCENT),
+            hint_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY)
         )
         
         cpu_field = ft.Slider(
@@ -412,7 +433,9 @@ class VMManagerApp:
             disabled=True,
             color=COLOR_TEXT_SECONDARY,
             bgcolor="#2a2a2a",
-            border_color=COLOR_ACCENT_DARK
+            border_color=COLOR_ACCENT_DARK,
+            label_style=ft.TextStyle(color=COLOR_ACCENT),
+            hint_style=ft.TextStyle(color=COLOR_TEXT_SECONDARY)
         )
         
         def edit_vm(e):
@@ -453,7 +476,7 @@ class VMManagerApp:
                 padding=20
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", color=COLOR_ACCENT, on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Save",
                     bgcolor=COLOR_ACCENT,
@@ -486,7 +509,7 @@ class VMManagerApp:
                 color=COLOR_TEXT_SECONDARY
             ),
             actions=[
-                ft.TextButton("Cancel", on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", color=COLOR_ACCENT, on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Delete",
                     bgcolor="#ff4444",
@@ -540,51 +563,67 @@ class VMManagerApp:
             bgcolor=COLOR_BG
         )
         
-        self.page.dialog = progress_dialog
-        progress_dialog.open = True
-        self.page.update()
+        self.page.open(progress_dialog)
         
         def update_progress(message: str):
+            """Update progress dialog and VM status in list."""
             progress_dialog.content.controls[1].value = message
+            # Update VM status for real-time display
+            self.vm_status[name] = message
+            self.refresh_vm_list()
             self.page.update()
         
         try:
             # Step 1: Create VM config
             update_progress("Creating VM configuration...")
             if not self.vm_manager.create_vm(name, cpu_cores, ram_gb, disk_gb):
+                self.vm_status.pop(name, None)
                 self.page.close(progress_dialog)
                 self.show_error(f"Failed to create VM '{name}'. It may already exist.")
+                self.refresh_vm_list()
                 return
+            
+            # VM now exists, refresh list to show it
+            self.refresh_vm_list()
             
             # Step 2: Create disk image
             update_progress("Creating disk image...")
             if not self.vm_operations.create_vm_disk(name, disk_gb):
+                self.vm_status.pop(name, None)
                 self.page.close(progress_dialog)
                 self.show_error("Failed to create disk image")
+                self.refresh_vm_list()
                 return
             
             # Step 3: Download ISO if needed
-            update_progress("Checking Windows ISO...")
+            update_progress("Downloading Windows ISO...")
             if not self.vm_operations.download_windows_iso():
+                self.vm_status.pop(name, None)
                 self.page.close(progress_dialog)
                 self.show_error("Failed to download Windows ISO")
+                self.refresh_vm_list()
                 return
             
             # Step 4: Prepare modified ISO
             update_progress("Preparing modified ISO (this may take several minutes)...")
             if not self.vm_operations.prepare_iso_for_vm(name, update_progress):
+                self.vm_status.pop(name, None)
                 self.page.close(progress_dialog)
                 self.show_error("Failed to prepare modified ISO")
+                self.refresh_vm_list()
                 return
             
-            # Success
+            # Success - clear status and show as ready
+            self.vm_status.pop(name, None)
             self.page.close(progress_dialog)
             self.show_success(f"VM '{name}' created successfully!")
             self.refresh_vm_list()
             
         except Exception as e:
+            self.vm_status.pop(name, None)
             self.page.close(progress_dialog)
             self.show_error(f"Error creating VM: {str(e)}")
+            self.refresh_vm_list()
     
     def show_error(self, message: str):
         """Show an error message."""
