@@ -610,7 +610,7 @@ class VMOperations:
                     subprocess.run(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
-                        capture_output=True,
+                        stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # Add drivers
@@ -630,7 +630,7 @@ class VMOperations:
                     subprocess.run(
                         ["sudo", "wimlib-imagex", "update", "boot.wim", "2",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
-                        capture_output=True,
+                        stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
                     # Add drivers
@@ -772,13 +772,13 @@ class VMOperations:
                 subprocess.run(
                     ["wimlib-imagex", "extract", "boot.wim", index,
                      "/autounattend.xml", "--dest-dir=/tmp"],
-                    capture_output=True,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
                 subprocess.run(
                     ["wimlib-imagex", "update", "boot.wim", index,
                      "--command", "rename /autounattend.xml /autounattend.org"],
-                    capture_output=True,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
                 
@@ -797,7 +797,7 @@ class VMOperations:
                 subprocess.run(
                     ["sudo", "wimlib-imagex", "update", "boot.wim", index,
                      "--command", f"add {autounattend_path} /autounattend.dat"],
-                    capture_output=True,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
                 print("✓ Also added as autounattend.dat")
