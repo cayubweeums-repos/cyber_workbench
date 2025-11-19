@@ -360,7 +360,7 @@ class VMManagerApp:
                 actions=[
                     ft.TextButton(
                         "Cancel",
-                        color=COLOR_ACCENT,
+                        style=ft.ButtonStyle(color=COLOR_ACCENT),
                         on_click=lambda e: self.page.close(dialog)
                     ),
                     ft.ElevatedButton(
@@ -484,7 +484,7 @@ class VMManagerApp:
                 padding=20
             ),
             actions=[
-                ft.TextButton("Cancel", color=COLOR_ACCENT, on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", style=ft.ButtonStyle(color=COLOR_ACCENT), on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Save",
                     bgcolor=COLOR_ACCENT,
@@ -517,7 +517,7 @@ class VMManagerApp:
                 color=COLOR_TEXT_SECONDARY
             ),
             actions=[
-                ft.TextButton("Cancel", color=COLOR_ACCENT, on_click=lambda e: self.page.close(dialog)),
+                ft.TextButton("Cancel", style=ft.ButtonStyle(color=COLOR_ACCENT), on_click=lambda e: self.page.close(dialog)),
                 ft.ElevatedButton(
                     "Delete",
                     bgcolor="#ff4444",
