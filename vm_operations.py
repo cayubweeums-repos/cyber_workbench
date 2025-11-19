@@ -236,10 +236,22 @@ class VMOperations:
                 return False
             print("✓ Drivers injected into boot.wim")
             
-            # Step 5: Copy drivers to $OEM$/$$/Drivers
+            # Step 5: Copy drivers to $WinPEDriver$ (at root of ISO for disk detection)
+            if progress_callback:
+                progress_callback("Copying drivers to WinPE directory...")
+            print("Step 5: Copying drivers to $WinPEDriver$ directory...")
+            if not self._copy_drivers_to_winpe_root(iso_extracted, winpe_drivers, drivers_temp):
+                error_msg = "Failed to copy drivers to $WinPEDriver$ directory"
+                print(f"ERROR: {error_msg}")
+                if progress_callback:
+                    progress_callback(f"ERROR: {error_msg}")
+                return False
+            print("✓ Drivers copied to $WinPEDriver$ directory")
+            
+            # Step 6: Copy drivers to $OEM$/$$/Drivers (for installation phase)
             if progress_callback:
                 progress_callback("Copying drivers to OEM directory...")
-            print("Step 5: Copying drivers to OEM directory...")
+            print("Step 6: Copying drivers to OEM directory...")
             if not self._copy_drivers_to_oem(iso_extracted, winpe_drivers, drivers_temp):
                 error_msg = "Failed to copy drivers to OEM directory"
                 print(f"ERROR: {error_msg}")
@@ -248,10 +260,10 @@ class VMOperations:
                 return False
             print("✓ Drivers copied to OEM directory")
             
-            # Step 6: Inject autounattend.xml
+            # Step 7: Inject autounattend.xml
             if progress_callback:
                 progress_callback("Injecting autounattend.xml...")
-            print("Step 6: Injecting autounattend.xml...")
+            print("Step 7: Injecting autounattend.xml...")
             if not self._inject_autounattend(iso_extracted, autounattend_path):
                 error_msg = "Failed to inject autounattend.xml"
                 print(f"ERROR: {error_msg}")
@@ -260,10 +272,10 @@ class VMOperations:
                 return False
             print("✓ autounattend.xml injected")
             
-            # Step 7: Rebuild ISO
+            # Step 8: Rebuild ISO
             if progress_callback:
                 progress_callback("Rebuilding ISO...")
-            print("Step 7: Rebuilding ISO...")
+            print("Step 8: Rebuilding ISO...")
             if not self._rebuild_iso(iso_extracted, modified_iso):
                 error_msg = "Failed to rebuild ISO"
                 print(f"ERROR: {error_msg}")
@@ -750,6 +762,57 @@ class VMOperations:
             return False
         except Exception as e:
             print(f"ERROR injecting drivers: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _copy_drivers_to_winpe_root(self, iso_extracted: Path, winpe_drivers: Path, drivers_temp: Path) -> bool:
+        """Copy drivers to $WinPEDriver$ at root of ISO - for automatic driver loading during disk selection."""
+        # Windows Setup automatically scans $WinPEDriver$ folder at root of ISO during Windows PE phase
+        # This is critical for disk detection before installation begins
+        winpe_root_dir = iso_extracted / "$WinPEDriver$"
+        
+        try:
+            print(f"Creating $WinPEDriver$ directory at root: {winpe_root_dir}")
+            self._run_command(
+                ["mkdir", "-p", str(winpe_root_dir)],
+                use_sudo=True,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Copy all drivers from WinPEDrivers to $WinPEDriver$ at root
+            drivers_source_absolute = (drivers_temp / "WinPEDrivers").resolve()
+            copy_cmd = (
+                f"cp -R {shlex.quote(str(drivers_source_absolute))}/* "
+                f"{shlex.quote(str(winpe_root_dir))}/"
+            )
+            print(f"Copying drivers from {drivers_source_absolute} to {winpe_root_dir}")
+            self._run_command(
+                ["/bin/sh", "-c", copy_cmd],
+                use_sudo=True,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            
+            # Verify drivers were copied
+            if not any(winpe_root_dir.iterdir()):
+                print("ERROR: No drivers found in $WinPEDriver$ directory after copy")
+                return False
+            
+            driver_count = len(list(winpe_root_dir.iterdir()))
+            print(f"✓ Drivers copied to $WinPEDriver$ directory ({driver_count} items)")
+            print(f"$WinPEDriver$ directory contents: {[d.name for d in winpe_root_dir.iterdir()]}")
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"ERROR copying drivers to $WinPEDriver$: {e}")
+            print(f"stdout: {e.stdout}")
+            print(f"stderr: {e.stderr}")
+            return False
+        except Exception as e:
+            print(f"ERROR copying drivers to $WinPEDriver$: {e}")
             import traceback
             traceback.print_exc()
             return False
