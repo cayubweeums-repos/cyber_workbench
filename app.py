@@ -70,12 +70,25 @@ class VMManagerApp:
         
         # Wrap content in container for transformation (flip page upside down)
         # rotate takes radians: 180 degrees = math.pi radians
-        content_container = ft.Container(
-            content=self.apply_page_transform(main_content),
-            rotate=math.pi if self.advanced_mode else 0,
-            alignment=ft.alignment.center,
-            expand=True
-        )
+        # Use Rotate object for proper transformation
+        if self.advanced_mode:
+            # Apply text reversal to content first
+            transformed_content = self.apply_page_transform(main_content)
+            # Then wrap in container that rotates 180 degrees
+            # Use Stack to ensure proper transformation bounds
+            content_container = ft.Stack(
+                controls=[
+                    ft.Container(
+                        content=transformed_content,
+                        rotate=ft.transform.Rotate(angle=math.pi, alignment=ft.alignment.center),
+                        alignment=ft.alignment.center,
+                        expand=True
+                    )
+                ],
+                expand=True
+            )
+        else:
+            content_container = main_content
         
         self.page.views.append(
             ft.View(
@@ -101,7 +114,8 @@ class VMManagerApp:
         self.advanced_mode = e.control.value
         print(f"Advanced mode: {self.advanced_mode}")
         # Rebuild the view to apply transformations
-        self.page.go(self.page.route)
+        self.route_change(self.page.route)
+        self.page.update()
     
     def apply_text_transform(self, text_control):
         """Apply text reversal transform if advanced mode is enabled."""
@@ -124,21 +138,31 @@ class VMManagerApp:
         if isinstance(control, ft.Text):
             return self.apply_text_transform(control)
         
+        # Create a copy to avoid modifying the original
+        import copy
+        try:
+            control_copy = copy.copy(control)
+        except:
+            control_copy = control
+        
         # If it has a content attribute, transform it recursively
-        if hasattr(control, 'content') and control.content is not None:
-            if isinstance(control.content, list):
+        if hasattr(control_copy, 'content') and control_copy.content is not None:
+            if isinstance(control_copy.content, list):
                 # For controls with lists of children
-                transformed_controls = [self.apply_page_transform(c) for c in control.content]
-                control.content = transformed_controls
+                control_copy.content = [self.apply_page_transform(c) for c in control_copy.content]
             else:
                 # For controls with single content
-                control.content = self.apply_page_transform(control.content)
+                control_copy.content = self.apply_page_transform(control_copy.content)
         
         # If it has a controls attribute (like Column, Row), transform those
-        if hasattr(control, 'controls') and control.controls is not None:
-            control.controls = [self.apply_page_transform(c) for c in control.controls]
+        if hasattr(control_copy, 'controls') and control_copy.controls is not None:
+            control_copy.controls = [self.apply_page_transform(c) for c in control_copy.controls]
         
-        return control
+        # If it has an actions attribute (like AlertDialog), transform those
+        if hasattr(control_copy, 'actions') and control_copy.actions is not None:
+            control_copy.actions = [self.apply_page_transform(c) for c in control_copy.actions]
+        
+        return control_copy
     
     def view_pop(self, view):
         """Handle view pop (back button)."""
