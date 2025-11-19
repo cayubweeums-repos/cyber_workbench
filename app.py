@@ -82,8 +82,18 @@ class VMManagerApp:
                 Rotate = ft.transform.Rotate
                 rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
             except AttributeError:
-                # If Rotate class doesn't exist, use number directly
-                rotate_obj = math.pi
+                # If Rotate class doesn't exist, try creating it manually
+                try:
+                    from dataclasses import dataclass, field
+                    from typing import Optional
+                    @dataclass
+                    class Rotate:
+                        angle: float
+                        alignment: Optional[ft.Alignment] = field(default=None)
+                    rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
+                except:
+                    # Fallback to number directly
+                    rotate_obj = math.pi
             
             content_container = ft.Stack(
                 controls=[
@@ -138,12 +148,13 @@ class VMManagerApp:
             except AttributeError:
                 # If Scale class doesn't exist, try creating it manually
                 from dataclasses import dataclass, field
+                from typing import Optional
                 @dataclass
                 class Scale:
-                    scale: float = field(default=None)
-                    scale_x: float = field(default=None)
-                    scale_y: float = field(default=None)
-                    alignment = field(default=None)
+                    scale: Optional[float] = field(default=None)
+                    scale_x: Optional[float] = field(default=None)
+                    scale_y: Optional[float] = field(default=None)
+                    alignment: Optional[ft.Alignment] = field(default=None)
                 scale_obj = Scale(scale_x=-1, scale_y=1)
             
             return ft.Container(
