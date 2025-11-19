@@ -8,7 +8,7 @@ PIP := $(VENV)/bin/pip
 
 start: check-deps setup-venv setup-dirs
 	@echo "Starting VM Manager..."
-	@$(PYTHON) $(REPO_ROOT)/app.py
+	@$(PYTHON) -u $(REPO_ROOT)/app.py
 
 stop:
 	@echo "Stopping VM Manager..."

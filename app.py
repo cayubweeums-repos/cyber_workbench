@@ -20,12 +20,26 @@ class VMManagerApp:
     """Main application class."""
     
     def __init__(self, page: ft.Page):
-        self.page = page
-        self.repo_root = Path(__file__).parent.absolute()
-        self.vm_manager = VMManager(str(self.repo_root))
-        self.vm_operations = VMOperations(str(self.repo_root))
-        self.vm_list_view = None
-        self.setup_ui()
+        try:
+            self.page = page
+            self.repo_root = Path(__file__).parent.absolute()
+            print(f"Repo root: {self.repo_root}")
+            
+            # Initialize managers
+            print("Initializing VM Manager...")
+            self.vm_manager = VMManager(str(self.repo_root))
+            print("Initializing VM Operations...")
+            self.vm_operations = VMOperations(str(self.repo_root))
+            
+            self.vm_list_view = None
+            print("Setting up UI...")
+            self.setup_ui()
+            print("UI setup complete")
+        except Exception as e:
+            print(f"Error in VMManagerApp.__init__: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
     
     def setup_ui(self):
         """Setup the UI."""
@@ -186,111 +200,119 @@ class VMManagerApp:
     
     def show_create_dialog(self, e):
         """Show dialog to create a new VM."""
-        name_field = ft.TextField(
-            label="VM Name",
-            hint_text="Enter VM name",
-            color=COLOR_TEXT,
-            bgcolor="#333333",
-            border_color=COLOR_ACCENT_DARK
-        )
-        
-        cpu_field = ft.Slider(
-            label="CPU Cores",
-            min=1,
-            max=16,
-            divisions=15,
-            value=8,
-            active_color=COLOR_ACCENT,
-            inactive_color=COLOR_ACCENT_DARK
-        )
-        cpu_text = ft.Text("8 cores", color=COLOR_TEXT_SECONDARY)
-        
-        def cpu_changed(e):
-            cpu_text.value = f"{int(cpu_field.value)} cores"
-            self.page.update()
-        
-        cpu_field.on_change = cpu_changed
-        
-        ram_field = ft.Slider(
-            label="RAM (GB)",
-            min=2,
-            max=32,
-            divisions=30,
-            value=8,
-            active_color=COLOR_ACCENT,
-            inactive_color=COLOR_ACCENT_DARK
-        )
-        ram_text = ft.Text("8 GB", color=COLOR_TEXT_SECONDARY)
-        
-        def ram_changed(e):
-            ram_text.value = f"{int(ram_field.value)} GB"
-            self.page.update()
-        
-        ram_field.on_change = ram_changed
-        
-        disk_field = ft.TextField(
-            label="Disk Size (GB)",
-            value="64",
-            color=COLOR_TEXT,
-            bgcolor="#333333",
-            border_color=COLOR_ACCENT_DARK
-        )
-        
-        def create_vm(e):
-            name = name_field.value.strip()
-            if not name:
-                self.show_error("VM name cannot be empty")
-                return
+        print("Create VM button clicked")
+        try:
+            name_field = ft.TextField(
+                label="VM Name",
+                hint_text="Enter VM name",
+                color=COLOR_TEXT,
+                bgcolor="#333333",
+                border_color=COLOR_ACCENT_DARK
+            )
             
-            try:
-                cpu_cores = int(cpu_field.value)
-                ram_gb = int(ram_field.value)
-                disk_gb = int(disk_field.value)
-                
-                if disk_gb < 20:
-                    self.show_error("Disk size must be at least 20 GB")
+            cpu_field = ft.Slider(
+                label="CPU Cores",
+                min=1,
+                max=16,
+                divisions=15,
+                value=8,
+                active_color=COLOR_ACCENT,
+                inactive_color=COLOR_ACCENT_DARK
+            )
+            cpu_text = ft.Text("8 cores", color=COLOR_TEXT_SECONDARY)
+            
+            def cpu_changed(e):
+                cpu_text.value = f"{int(cpu_field.value)} cores"
+                self.page.update()
+            
+            cpu_field.on_change = cpu_changed
+            
+            ram_field = ft.Slider(
+                label="RAM (GB)",
+                min=2,
+                max=32,
+                divisions=30,
+                value=8,
+                active_color=COLOR_ACCENT,
+                inactive_color=COLOR_ACCENT_DARK
+            )
+            ram_text = ft.Text("8 GB", color=COLOR_TEXT_SECONDARY)
+            
+            def ram_changed(e):
+                ram_text.value = f"{int(ram_field.value)} GB"
+                self.page.update()
+            
+            ram_field.on_change = ram_changed
+            
+            disk_field = ft.TextField(
+                label="Disk Size (GB)",
+                value="64",
+                color=COLOR_TEXT,
+                bgcolor="#333333",
+                border_color=COLOR_ACCENT_DARK
+            )
+            
+            def create_vm(e):
+                name = name_field.value.strip()
+                if not name:
+                    self.show_error("VM name cannot be empty")
                     return
                 
-                dialog.open = False
-                self.page.update()
-                
-                self.create_vm_workflow(name, cpu_cores, ram_gb, disk_gb)
-            except ValueError:
-                self.show_error("Invalid numeric value")
-        
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Create New VM", color=COLOR_TEXT),
-            content=ft.Container(
-                content=ft.Column(
-                    controls=[
-                        name_field,
-                        ft.Row([cpu_field, cpu_text]),
-                        ft.Row([ram_field, ram_text]),
-                        disk_field
-                    ],
-                    spacing=15,
-                    tight=True
+                try:
+                    cpu_cores = int(cpu_field.value)
+                    ram_gb = int(ram_field.value)
+                    disk_gb = int(disk_field.value)
+                    
+                    if disk_gb < 20:
+                        self.show_error("Disk size must be at least 20 GB")
+                        return
+                    
+                    dialog.open = False
+                    self.page.update()
+                    
+                    self.create_vm_workflow(name, cpu_cores, ram_gb, disk_gb)
+                except ValueError:
+                    self.show_error("Invalid numeric value")
+            
+            dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Create New VM", color=COLOR_TEXT),
+                content=ft.Container(
+                    content=ft.Column(
+                        controls=[
+                            name_field,
+                            ft.Row([cpu_field, cpu_text]),
+                            ft.Row([ram_field, ram_text]),
+                            disk_field
+                        ],
+                        spacing=15,
+                        tight=True
+                    ),
+                    width=400,
+                    padding=20
                 ),
-                width=400,
-                padding=20
-            ),
-            actions=[
-                ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, "open", False) or self.page.update()),
-                ft.ElevatedButton(
-                    "Create",
-                    bgcolor=COLOR_ACCENT,
-                    color=COLOR_BG,
-                    on_click=create_vm
-                )
-            ],
-            bgcolor=COLOR_BG,
-            actions_alignment=ft.MainAxisAlignment.END
-        )
-        
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+                actions=[
+                    ft.TextButton("Cancel", on_click=lambda e: setattr(dialog, "open", False) or self.page.update()),
+                    ft.ElevatedButton(
+                        "Create",
+                        bgcolor=COLOR_ACCENT,
+                        color=COLOR_BG,
+                        on_click=create_vm
+                    )
+                ],
+                bgcolor=COLOR_BG,
+                actions_alignment=ft.MainAxisAlignment.END
+            )
+            
+            self.page.dialog = dialog
+            dialog.open = True
+            self.page.update()
+            print("Create VM dialog opened")
+        except Exception as ex:
+            print(f"Error showing create dialog: {ex}")
+            import traceback
+            traceback.print_exc()
+            self.show_error(f"Error opening create dialog: {str(ex)}")
     
     def show_edit_dialog(self, vm_name: str):
         """Show dialog to edit a VM."""
@@ -580,9 +602,42 @@ class VMManagerApp:
 
 def main(page: ft.Page):
     """Main entry point."""
-    app = VMManagerApp(page)
+    try:
+        print("Initializing VM Manager App...")
+        app = VMManagerApp(page)
+        print("VM Manager App initialized successfully")
+    except Exception as e:
+        print(f"Error initializing app: {e}")
+        import traceback
+        traceback.print_exc()
+        # Show error in UI if possible
+        try:
+            page.add(ft.Text(f"Error: {str(e)}", color="#ff4444"))
+            page.update()
+        except:
+            pass
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    # Ensure unbuffered output for debugging
+    import sys
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+    except AttributeError:
+        # Python < 3.7 doesn't have reconfigure
+        pass
+    
+    print("Starting Flet application...")
+    print(f"Python version: {sys.version}")
+    print(f"Flet version: {ft.__version__ if hasattr(ft, '__version__') else 'unknown'}")
+    
+    try:
+        # Try desktop app mode first, fallback to web if needed
+        ft.app(target=main, view=ft.AppView.FLET_APP)
+    except Exception as e:
+        print(f"Fatal error starting Flet: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
