@@ -11,6 +11,17 @@
       <UserLocale>en-US</UserLocale>
     </component>
     <component name="Microsoft-Windows-Setup" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <DriverPaths>
+        <!-- $WinPEDriver$ folder at root is automatically scanned by Windows Setup -->
+        <!-- Explicitly specify it to ensure drivers are loaded during disk selection -->
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>$WinPEDriver$</Path>
+        </PathAndCredentials>
+        <!-- Also include $OEM$/$$/Drivers for installation phase drivers -->
+        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
+          <Path>$OEM$\$$\Drivers</Path>
+        </PathAndCredentials>
+      </DriverPaths>
       <DiskConfiguration>
         <Disk wcm:action="add">
           <DiskID>0</DiskID>
