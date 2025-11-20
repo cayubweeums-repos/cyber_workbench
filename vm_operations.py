@@ -1,6 +1,7 @@
 """VM Operations module for QEMU operations and ISO preparation."""
 
 import os
+import platform
 import subprocess
 import shutil
 import tempfile
@@ -1079,11 +1080,24 @@ class VMOperations:
             print(f"Modified ISO not found for {vm_name}")
             return False
         
-        # Find OVMF firmware
-        ovmf_paths = [
-            "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
-            "/usr/local/share/qemu/edk2-aarch64-code.fd"
-        ]
+        # Find OVMF firmware - paths differ by OS
+        system = platform.system()
+        if system == "Darwin":  # macOS
+            ovmf_paths = [
+                "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+                "/usr/local/share/qemu/edk2-aarch64-code.fd"
+            ]
+        elif system == "Linux":
+            ovmf_paths = [
+                "/usr/share/qemu/edk2-aarch64-code.fd",
+                "/usr/share/OVMF/edk2-aarch64-code.fd",
+                "/usr/lib/qemu/edk2-aarch64-code.fd",
+                "/usr/local/share/qemu/edk2-aarch64-code.fd"
+            ]
+        else:
+            print(f"Unsupported OS: {system}")
+            return False
+        
         ovmf = None
         for path in ovmf_paths:
             if Path(path).exists():
@@ -1091,14 +1105,46 @@ class VMOperations:
                 break
         
         if not ovmf:
-            print("OVMF firmware not found")
+            print(f"OVMF firmware not found. Searched in: {ovmf_paths}")
+            print("Please install OVMF firmware for your system:")
+            if system == "Darwin":
+                print("  brew install qemu")
+            elif system == "Linux":
+                print("  sudo apt-get install qemu-efi-aarch64  # Debian/Ubuntu")
+                print("  sudo dnf install edk2-aarch64          # Fedora/RHEL")
             return False
         
         try:
+            # Determine acceleration and QEMU binary based on OS and architecture
+            system = platform.system()
+            machine = platform.machine()
+            
+            # Determine QEMU binary name
+            if system == "Darwin":  # macOS
+                qemu_binary = "qemu-system-aarch64"
+                accel = "hvf"
+            elif system == "Linux":
+                # On Linux, check architecture
+                if machine in ("x86_64", "amd64"):
+                    # x86_64: use qemu-system-aarch64 for cross-architecture emulation
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"  # KVM can emulate ARM64 on x86_64
+                elif machine in ("aarch64", "arm64"):
+                    # ARM64: native execution
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"  # Use KVM for native ARM64
+                else:
+                    # Unknown architecture, try default
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"
+            else:
+                qemu_binary = "qemu-system-aarch64"
+                accel = "tcg"  # Fallback for other systems
+            
             # Build QEMU command
             cmd = [
-                "qemu-system-aarch64",
-                "-accel", "hvf",
+                qemu_binary,
+                "-accel", accel,
                 "-cpu", "max",
                 "-smp", str(config.cpu_cores),
                 "-m", f"{config.ram_gb}G",
@@ -1122,6 +1168,9 @@ class VMOperations:
                 "-display", "vnc=:0",
                 "-vnc", "127.0.0.1:0"
             ]
+            
+            # On Linux, if KVM is not available, QEMU will automatically fall back to TCG
+            # We can try to detect this, but it's better to let QEMU handle it
             
             # Start QEMU in background
             subprocess.Popen(

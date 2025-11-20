@@ -46,8 +46,19 @@ class VMManagerApp:
             self.page.on_route_change = self.route_change
             self.page.on_view_pop = self.view_pop
             
+            # Create main content column
+            self.content_column = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+            
+            # Add main layout
+            self.page.add(
+                ft.Column(
+                    [self.content_column],
+                    expand=True
+                )
+            )
+            
             print("Setting up routing...")
-            self.page.go(self.page.route)
+            self.page.go(self.page.route if self.page.route else "/")
             print("UI setup complete")
         except Exception as e:
             print(f"Error in VMManagerApp.__init__: {e}")
@@ -55,9 +66,12 @@ class VMManagerApp:
             traceback.print_exc()
             raise
     
-    def route_change(self, route):
+    def route_change(self, e):
         """Handle route changes and build views."""
-        self.page.views.clear()
+        troute = ft.TemplateRoute(self.page.route)
+        
+        # Clear content
+        self.content_column.controls.clear()
         
         # Advanced mode toggle
         advanced_toggle = ft.Switch(
@@ -67,73 +81,78 @@ class VMManagerApp:
             on_change=self.toggle_advanced_mode
         )
         
-        # Handle VNC viewer route
-        if route.startswith("/vnc/"):
-            vm_name = route.replace("/vnc/", "")
-            self.page.views.append(self.build_vnc_viewer_view(vm_name, advanced_toggle))
-            self.page.update()
-            return
-        
-        # Main VM list view
-        main_content = self.build_vm_list_view()
-        
-        # Wrap content in container for transformation (flip page upside down)
-        # rotate takes radians: 180 degrees = math.pi radians
-        # Use Rotate object for proper transformation
-        if self.advanced_mode:
-            # Apply text reversal to content first
-            transformed_content = self.apply_page_transform(main_content)
-            # Then wrap in container that rotates 180 degrees
-            # Use Stack to ensure proper transformation bounds
-            # Rotate can be a number (radians) or Rotate object
-            # Try using the Rotate class directly - if it doesn't exist, use number
-            try:
-                Rotate = ft.transform.Rotate
-                rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
-            except AttributeError:
-                # If Rotate class doesn't exist, try creating it manually
-                try:
-                    from dataclasses import dataclass, field
-                    from typing import Optional
-                    @dataclass
-                    class Rotate:
-                        angle: float
-                        alignment: Optional[ft.Alignment] = field(default=None)
-                    rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
-                except:
-                    # Fallback to number directly
-                    rotate_obj = math.pi
-            
-            content_container = ft.Stack(
-                controls=[
-                    ft.Container(
-                        content=transformed_content,
-                        rotate=rotate_obj,
-                        alignment=ft.alignment.center,
-                        expand=True
-                    )
-                ],
-                expand=True
-            )
-        else:
-            content_container = main_content
-        
-        self.page.views.append(
-            ft.View(
-                "/",
-                [
-                    ft.AppBar(
-                        title=ft.Text("", color=COLOR_TEXT),
-                        bgcolor=COLOR_BG,
-                        color=COLOR_ACCENT,
-                        actions=[advanced_toggle]
-                    ),
-                    content_container
-                ],
-                bgcolor=COLOR_BG,
-                padding=20
-            )
+        # Set up AppBar
+        self.page.appbar = ft.AppBar(
+            title=ft.Text("VM Manager", color=COLOR_TEXT),
+            bgcolor=COLOR_BG,
+            color=COLOR_ACCENT,
+            actions=[advanced_toggle]
         )
+        
+        # Route matching
+        if troute.match("/vnc/:vm_name"):
+            # VNC viewer route
+            vm_name = troute.vm_name
+            vnc_content = self.build_vnc_viewer_content(vm_name)
+            self.content_column.controls.append(vnc_content)
+        elif troute.match("/"):
+            # Main VM list view
+            main_content = self.build_vm_list_view()
+            
+            # Apply advanced mode transformations if enabled
+            if self.advanced_mode:
+                transformed_content = self.apply_page_transform(main_content)
+                try:
+                    Rotate = ft.transform.Rotate
+                    rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
+                except AttributeError:
+                    try:
+                        from dataclasses import dataclass, field
+                        from typing import Optional
+                        @dataclass
+                        class Rotate:
+                            angle: float
+                            alignment: Optional[ft.Alignment] = field(default=None)
+                        rotate_obj = Rotate(angle=math.pi, alignment=ft.alignment.center)
+                    except:
+                        rotate_obj = math.pi
+                
+                content_container = ft.Stack(
+                    controls=[
+                        ft.Container(
+                            content=transformed_content,
+                            rotate=rotate_obj,
+                            alignment=ft.alignment.center,
+                            expand=True
+                        )
+                    ],
+                    expand=True
+                )
+                self.content_column.controls.append(content_container)
+            else:
+                self.content_column.controls.append(main_content)
+        else:
+            # 404 - Page not found
+            self.content_column.controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Text(f"404 - Page not found: {self.page.route}", 
+                                   size=20, color=COLOR_TEXT),
+                            ft.ElevatedButton(
+                                "Go Home",
+                                bgcolor=COLOR_ACCENT,
+                                color=COLOR_BG,
+                                on_click=lambda _: self.page.go("/")
+                            )
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=20
+                    ),
+                    alignment=ft.alignment.center,
+                    expand=True
+                )
+            )
         
         self.page.update()
     
@@ -141,9 +160,8 @@ class VMManagerApp:
         """Toggle advanced mode (reverse text and flip page)."""
         self.advanced_mode = e.control.value
         print(f"Advanced mode: {self.advanced_mode}")
-        # Rebuild the view to apply transformations
-        self.route_change(self.page.route)
-        self.page.update()
+        # Rebuild the view to apply transformations by triggering route change
+        self.route_change(e)
     
     def apply_text_transform(self, text_control):
         """Apply text reversal transform if advanced mode is enabled."""
@@ -211,8 +229,11 @@ class VMManagerApp:
     def view_pop(self, view):
         """Handle view pop (back button)."""
         self.page.views.pop()
-        top_view = self.page.views[-1]
-        self.page.go(top_view.route)
+        if len(self.page.views) > 0:
+            top_view = self.page.views[-1]
+            self.page.go(top_view.route)
+        else:
+            self.page.go("/")
     
     def open_vnc_viewer(self, vm_name: str):
         """Open VNC viewer for a VM."""
@@ -223,67 +244,71 @@ class VMManagerApp:
         # Navigate to VNC viewer route
         self.page.go(f"/vnc/{vm_name}")
     
-    def build_vnc_viewer_view(self, vm_name: str, advanced_toggle) -> ft.View:
-        """Build the VNC viewer view with WebView."""
+    def build_vnc_viewer_content(self, vm_name: str) -> ft.Container:
+        """Build the VNC viewer content with WebView."""
+        # Update AppBar for VNC viewer
+        self.page.appbar = ft.AppBar(
+            title=ft.Text(f"VNC Viewer - {vm_name}", color=COLOR_TEXT),
+            bgcolor=COLOR_BG,
+            color=COLOR_ACCENT,
+            actions=[
+                ft.IconButton(
+                    ft.icons.ARROW_BACK,
+                    icon_color=COLOR_ACCENT,
+                    on_click=lambda e: self.page.go("/")
+                ),
+                ft.Switch(
+                    label="Advanced Mode",
+                    value=self.advanced_mode,
+                    label_style=ft.TextStyle(color=COLOR_ACCENT),
+                    on_change=self.toggle_advanced_mode
+                )
+            ]
+        )
+        
         # Start websockify proxy
         websocket_port = self.vm_operations.start_websockify(vm_name, vnc_port=5900)
         
         if websocket_port is None:
-            # Fallback: try to use a simple noVNC HTML that connects directly
-            # (This won't work without websockify, but we'll show an error)
-            error_content = ft.Column(
-                controls=[
-                    ft.Text(
-                        "VNC Viewer",
-                        size=24,
-                        weight=ft.FontWeight.BOLD,
-                        color=COLOR_ACCENT
-                    ),
-                    ft.Text(
-                        "Error: websockify not found. Please install it:",
-                        size=16,
-                        color=COLOR_TEXT
-                    ),
-                    ft.Text(
-                        "pip install websockify",
-                        size=14,
-                        color=COLOR_ACCENT,
-                        selectable=True
-                    ),
-                    ft.Text(
-                        "Or on macOS: brew install websockify",
-                        size=14,
-                        color=COLOR_ACCENT,
-                        selectable=True
-                    ),
-                    ft.ElevatedButton(
-                        "Back",
-                        bgcolor=COLOR_ACCENT,
-                        color=COLOR_BG,
-                        on_click=lambda e: self.page.go("/")
-                    )
-                ],
-                spacing=20,
-                alignment=ft.MainAxisAlignment.CENTER,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER
-            )
-            
-            return ft.View(
-                f"/vnc/{vm_name}",
-                [
-                    ft.AppBar(
-                        title=ft.Text(f"VNC Viewer - {vm_name}", color=COLOR_TEXT),
-                        bgcolor=COLOR_BG,
-                        color=COLOR_ACCENT,
-                        actions=[advanced_toggle]
-                    ),
-                    ft.Container(
-                        content=error_content,
-                        expand=True,
-                        alignment=ft.alignment.center
-                    )
-                ],
-                bgcolor=COLOR_BG
+            # Show error if websockify not found
+            return ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text(
+                            "VNC Viewer",
+                            size=24,
+                            weight=ft.FontWeight.BOLD,
+                            color=COLOR_ACCENT
+                        ),
+                        ft.Text(
+                            "Error: websockify not found. Please install it:",
+                            size=16,
+                            color=COLOR_TEXT
+                        ),
+                        ft.Text(
+                            "pip install websockify",
+                            size=14,
+                            color=COLOR_ACCENT,
+                            selectable=True
+                        ),
+                        ft.Text(
+                            "Or on macOS: brew install websockify",
+                            size=14,
+                            color=COLOR_ACCENT,
+                            selectable=True
+                        ),
+                        ft.ElevatedButton(
+                            "Back",
+                            bgcolor=COLOR_ACCENT,
+                            color=COLOR_BG,
+                            on_click=lambda e: self.page.go("/")
+                        )
+                    ],
+                    spacing=20,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                ),
+                expand=True,
+                alignment=ft.alignment.center
             )
         
         # Generate noVNC HTML
@@ -291,43 +316,26 @@ class VMManagerApp:
         
         # Create WebView with noVNC
         webview = ft.WebView(
-            url="about:blank",  # Start with blank, then load HTML
+            url="about:blank",
             expand=True,
             enable_javascript=True
         )
         
-        # Load the HTML content
-        # Note: Flet WebView on macOS supports load_html (according to docs)
-        # But we'll use a data URL as fallback for better compatibility
+        # Load the HTML content using data URL
         import base64
         html_encoded = base64.b64encode(novnc_html.encode('utf-8')).decode('utf-8')
         webview.url = f"data:text/html;charset=utf-8;base64,{html_encoded}"
         
-        # Also try load_html if available (for better compatibility)
+        # Also try load_html if available
         try:
             if hasattr(webview, 'load_html'):
                 webview.load_html(novnc_html, base_url="http://localhost")
         except Exception as e:
             print(f"Note: load_html not available, using data URL: {e}")
         
-        return ft.View(
-            f"/vnc/{vm_name}",
-            [
-                ft.AppBar(
-                    title=ft.Text(f"VNC Viewer - {vm_name}", color=COLOR_TEXT),
-                    bgcolor=COLOR_BG,
-                    color=COLOR_ACCENT,
-                    actions=[
-                        ft.IconButton(
-                            ft.icons.ARROW_BACK,
-                            icon_color=COLOR_ACCENT,
-                            on_click=lambda e: self.page.go("/")
-                        ),
-                        advanced_toggle
-                    ]
-                ),
-                webview
-            ],
+        return ft.Container(
+            content=webview,
+            expand=True,
             bgcolor=COLOR_BG
         )
     
