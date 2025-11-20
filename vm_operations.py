@@ -1,6 +1,7 @@
 """VM Operations module for QEMU operations and ISO preparation."""
 
 import os
+import sys
 import platform
 import subprocess
 import shutil
@@ -1231,17 +1232,35 @@ class VMOperations:
             websocket_port = 6080 + (hash(vm_name) % 1000)
         
         try:
-            # Check if websockify is installed
-            result = subprocess.run(
-                ["which", "websockify"],
-                capture_output=True,
-                text=True
-            )
+            # Check if websockify is installed - try multiple methods
+            websockify_path = None
             
-            if result.returncode != 0:
+            # First, try shutil.which which checks PATH
+            websockify_path = shutil.which("websockify")
+            
+            # If not found, try checking in common pip installation locations
+            if not websockify_path:
+                # Check in virtual environment if we're in one
+                venv_bin = Path(sys.executable).parent / "websockify"
+                if venv_bin.exists():
+                    websockify_path = str(venv_bin)
+                else:
+                    # Try user's local bin (pip install --user)
+                    user_bin = Path.home() / ".local" / "bin" / "websockify"
+                    if user_bin.exists():
+                        websockify_path = str(user_bin)
+                    else:
+                        # Try common macOS Homebrew pip location
+                        brew_bin = Path("/opt/homebrew/bin/websockify")
+                        if brew_bin.exists():
+                            websockify_path = str(brew_bin)
+            
+            if not websockify_path:
                 print("WARNING: websockify not found. Install with: pip install websockify")
                 print("Or on macOS: brew install websockify")
                 return None
+            
+            print(f"Found websockify at: {websockify_path}")
             
             # Check if websockify is already running for this VM
             result = subprocess.run(
@@ -1254,10 +1273,10 @@ class VMOperations:
                 print(f"Websockify already running on port {websocket_port}")
                 return websocket_port
             
-            # Start websockify
+            # Start websockify - use the found path
+            # Note: --web flag is optional, we'll use noVNC from CDN in HTML
             cmd = [
-                "websockify",
-                "--web", "/usr/share/novnc",  # Use system noVNC if available
+                websockify_path,
                 str(websocket_port),
                 f"127.0.0.1:{vnc_port}"
             ]

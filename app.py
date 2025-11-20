@@ -1,6 +1,7 @@
 """Main Flet application for VM Manager."""
 
 import flet as ft
+import flet_webview as ftwv
 import math
 import os
 import sys
@@ -334,24 +335,27 @@ class VMManagerApp:
         # Generate noVNC HTML
         novnc_html = self.generate_novnc_html(websocket_port)
         
-        # Create WebView with noVNC
-        webview = ft.WebView(
+        # Create WebView with noVNC using flet_webview (per Flet docs)
+        # According to docs: use flet_webview.WebView instead of ft.WebView
+        webview = ftwv.WebView(
             url="about:blank",
+            on_page_started=lambda _: print("VNC page started loading"),
+            on_page_ended=lambda _: print("VNC page finished loading"),
+            on_web_resource_error=lambda e: print(f"VNC page error: {e.data}"),
             expand=True,
             enable_javascript=True
         )
         
-        # Load the HTML content using data URL
-        import base64
-        html_encoded = base64.b64encode(novnc_html.encode('utf-8')).decode('utf-8')
-        webview.url = f"data:text/html;charset=utf-8;base64,{html_encoded}"
-        
-        # Also try load_html if available
+        # Load the HTML content using load_html method (preferred method per docs)
         try:
-            if hasattr(webview, 'load_html'):
-                webview.load_html(novnc_html, base_url="http://localhost")
+            webview.load_html(novnc_html, base_url="http://localhost")
+            print(f"Loaded noVNC HTML into WebView, connecting to ws://127.0.0.1:{websocket_port}")
         except Exception as e:
-            print(f"Note: load_html not available, using data URL: {e}")
+            print(f"Error loading HTML with load_html, trying data URL: {e}")
+            # Fallback to data URL if load_html fails
+            import base64
+            html_encoded = base64.b64encode(novnc_html.encode('utf-8')).decode('utf-8')
+            webview.url = f"data:text/html;charset=utf-8;base64,{html_encoded}"
         
         # For VNC viewer, remove padding to allow full-screen view
         self.content_container.padding = 0
