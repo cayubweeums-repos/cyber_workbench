@@ -342,12 +342,16 @@ class VMManagerApp:
         
         # Create WebView with noVNC using flet_webview (per Flet docs)
         # Use data URL directly - this should work immediately
+        def on_console(msg):
+            print(f"VNC console: {msg.message}")
+            # Also show important messages in the UI if needed
+        
         webview = ftwv.WebView(
             url=data_url,
             on_page_started=lambda _: print("VNC page started loading"),
             on_page_ended=lambda _: print("VNC page finished loading"),
             on_web_resource_error=lambda e: print(f"VNC page error: {e.data}"),
-            on_console_message=lambda e: print(f"VNC console: {e.message}"),
+            on_console_message=on_console,
             expand=True,
             enable_javascript=True,
             bgcolor="#000000"
@@ -391,23 +395,40 @@ class VMManagerApp:
         #noVNC_screen {{
             width: 100%;
             height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            min-height: 400px;
+            display: block;
+            background-color: #000;
+            position: relative;
         }}
         .loading {{
             color: #fff;
             font-family: Arial, sans-serif;
             font-size: 16px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
         }}
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js"></script>
-</head>
-<body>
-    <div id="noVNC_screen">
-        <div class="loading">Connecting to VNC server...</div>
-    </div>
     <script>
+        // Load noVNC library and then connect
+        function loadNoVNC() {{
+            console.log("Loading noVNC library...");
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js';
+            script.onload = function() {{
+                console.log("noVNC library loaded, initializing connection...");
+                connectVNC();
+            }};
+            script.onerror = function() {{
+                console.error("Failed to load noVNC library");
+                document.getElementById('noVNC_screen').innerHTML = 
+                    '<div class="loading">Error: Failed to load noVNC library</div>';
+            }};
+            document.head.appendChild(script);
+        }}
+        
         let rfb;
         const screen = document.getElementById('noVNC_screen');
         
@@ -418,9 +439,11 @@ class VMManagerApp:
                 // Check if RFB is available
                 if (typeof RFB === 'undefined') {{
                     console.error("RFB class not found - noVNC library not loaded");
-                    screen.innerHTML = '<div class="loading">Error: noVNC library not loaded</div>';
+                    screen.innerHTML = '<div class="loading">Error: noVNC library not loaded. Check console.</div>';
                     return;
                 }}
+                
+                console.log("RFB class found, creating RFB instance...");
                 
                 // Clear loading message
                 screen.innerHTML = '';
@@ -432,13 +455,15 @@ class VMManagerApp:
                     credentials: {{ password: '' }}
                 }});
                 
+                console.log("RFB instance created, configuring...");
+                
                 rfb.scaleViewport = true;
                 rfb.resizeSession = true;
                 rfb.background = '#000000';
                 
                 rfb.addEventListener("connect", () => {{
                     console.log("✓ Connected to VNC server");
-                    screen.innerHTML = '';
+                    screen.style.backgroundColor = '#000000';
                 }});
                 
                 rfb.addEventListener("disconnect", (e) => {{
@@ -452,20 +477,21 @@ class VMManagerApp:
                 }});
                 
                 // Connect to websockify proxy
-                console.log("Attempting to connect to websocket...");
+                console.log("Attempting to connect to websocket ws://127.0.0.1:{websocket_port}...");
                 rfb.connect('ws://127.0.0.1:{websocket_port}');
             }} catch (error) {{
                 console.error("Error initializing VNC:", error);
+                console.error("Stack:", error.stack);
                 screen.innerHTML = '<div class="loading">Error: ' + error.message + '</div>';
             }}
         }}
         
-        // Connect when page loads or immediately if already loaded
+        // Start loading when page is ready
         if (document.readyState === 'loading') {{
-            window.addEventListener('load', connectVNC);
+            window.addEventListener('load', loadNoVNC);
         }} else {{
             // DOM already loaded
-            connectVNC();
+            loadNoVNC();
         }}
     </script>
 </body>
