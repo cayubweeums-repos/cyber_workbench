@@ -1157,9 +1157,99 @@ class VMOperations:
                 for pid in pids:
                     if pid:
                         subprocess.run(["kill", pid], capture_output=True)
-                return True
-            return False
+            
+            # Also stop websockify proxy if running
+            self.stop_websockify(vm_name)
+            
+            return True
         except Exception as e:
             print(f"Error stopping VM: {e}")
             return False
+    
+    def start_websockify(self, vm_name: str, vnc_port: int = 5900, websocket_port: int = None) -> Optional[int]:
+        """Start websockify proxy for VNC to WebSocket conversion.
+        
+        Args:
+            vm_name: Name of the VM
+            vnc_port: VNC port (default 5900)
+            websocket_port: WebSocket port (defaults to 6080 + VM index)
+            
+        Returns:
+            WebSocket port number if successful, None otherwise
+        """
+        # Calculate websocket port if not provided (use 6080 + hash of VM name)
+        if websocket_port is None:
+            websocket_port = 6080 + (hash(vm_name) % 1000)
+        
+        try:
+            # Check if websockify is installed
+            result = subprocess.run(
+                ["which", "websockify"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                print("WARNING: websockify not found. Install with: pip install websockify")
+                print("Or on macOS: brew install websockify")
+                return None
+            
+            # Check if websockify is already running for this VM
+            result = subprocess.run(
+                ["pgrep", "-f", f"websockify.*{websocket_port}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                print(f"Websockify already running on port {websocket_port}")
+                return websocket_port
+            
+            # Start websockify
+            cmd = [
+                "websockify",
+                "--web", "/usr/share/novnc",  # Use system noVNC if available
+                str(websocket_port),
+                f"127.0.0.1:{vnc_port}"
+            ]
+            
+            # Try to start websockify
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            # Wait a moment to check if it started successfully
+            import time
+            time.sleep(0.5)
+            
+            if process.poll() is None:
+                print(f"Websockify started on port {websocket_port} for VNC {vnc_port}")
+                return websocket_port
+            else:
+                print(f"Failed to start websockify")
+                return None
+                
+        except Exception as e:
+            print(f"Error starting websockify: {e}")
+            return None
+    
+    def stop_websockify(self, vm_name: str):
+        """Stop websockify proxy for a VM."""
+        try:
+            # Find and kill websockify processes
+            result = subprocess.run(
+                ["pgrep", "-f", "websockify"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        subprocess.run(["kill", pid], capture_output=True)
+        except Exception as e:
+            print(f"Error stopping websockify: {e}")
 

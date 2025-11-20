@@ -67,6 +67,13 @@ class VMManagerApp:
             on_change=self.toggle_advanced_mode
         )
         
+        # Handle VNC viewer route
+        if route.startswith("/vnc/"):
+            vm_name = route.replace("/vnc/", "")
+            self.page.views.append(self.build_vnc_viewer_view(vm_name, advanced_toggle))
+            self.page.update()
+            return
+        
         # Main VM list view
         main_content = self.build_vm_list_view()
         
@@ -207,6 +214,214 @@ class VMManagerApp:
         top_view = self.page.views[-1]
         self.page.go(top_view.route)
     
+    def open_vnc_viewer(self, vm_name: str):
+        """Open VNC viewer for a VM."""
+        if not self.vm_manager.is_vm_running(vm_name):
+            self.show_error(f"VM '{vm_name}' is not running. Please start it first.")
+            return
+        
+        # Navigate to VNC viewer route
+        self.page.go(f"/vnc/{vm_name}")
+    
+    def build_vnc_viewer_view(self, vm_name: str, advanced_toggle) -> ft.View:
+        """Build the VNC viewer view with WebView."""
+        # Start websockify proxy
+        websocket_port = self.vm_operations.start_websockify(vm_name, vnc_port=5900)
+        
+        if websocket_port is None:
+            # Fallback: try to use a simple noVNC HTML that connects directly
+            # (This won't work without websockify, but we'll show an error)
+            error_content = ft.Column(
+                controls=[
+                    ft.Text(
+                        "VNC Viewer",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                        color=COLOR_ACCENT
+                    ),
+                    ft.Text(
+                        "Error: websockify not found. Please install it:",
+                        size=16,
+                        color=COLOR_TEXT
+                    ),
+                    ft.Text(
+                        "pip install websockify",
+                        size=14,
+                        color=COLOR_ACCENT,
+                        selectable=True
+                    ),
+                    ft.Text(
+                        "Or on macOS: brew install websockify",
+                        size=14,
+                        color=COLOR_ACCENT,
+                        selectable=True
+                    ),
+                    ft.ElevatedButton(
+                        "Back",
+                        bgcolor=COLOR_ACCENT,
+                        color=COLOR_BG,
+                        on_click=lambda e: self.page.go("/")
+                    )
+                ],
+                spacing=20,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            )
+            
+            return ft.View(
+                f"/vnc/{vm_name}",
+                [
+                    ft.AppBar(
+                        title=ft.Text(f"VNC Viewer - {vm_name}", color=COLOR_TEXT),
+                        bgcolor=COLOR_BG,
+                        color=COLOR_ACCENT,
+                        actions=[advanced_toggle]
+                    ),
+                    ft.Container(
+                        content=error_content,
+                        expand=True,
+                        alignment=ft.alignment.center
+                    )
+                ],
+                bgcolor=COLOR_BG
+            )
+        
+        # Generate noVNC HTML
+        novnc_html = self.generate_novnc_html(websocket_port)
+        
+        # Create WebView with noVNC
+        webview = ft.WebView(
+            url="about:blank",  # Start with blank, then load HTML
+            expand=True,
+            enable_javascript=True
+        )
+        
+        # Load the HTML content
+        # Note: Flet WebView on macOS supports load_html (according to docs)
+        # But we'll use a data URL as fallback for better compatibility
+        import base64
+        html_encoded = base64.b64encode(novnc_html.encode('utf-8')).decode('utf-8')
+        webview.url = f"data:text/html;charset=utf-8;base64,{html_encoded}"
+        
+        # Also try load_html if available (for better compatibility)
+        try:
+            if hasattr(webview, 'load_html'):
+                webview.load_html(novnc_html, base_url="http://localhost")
+        except Exception as e:
+            print(f"Note: load_html not available, using data URL: {e}")
+        
+        return ft.View(
+            f"/vnc/{vm_name}",
+            [
+                ft.AppBar(
+                    title=ft.Text(f"VNC Viewer - {vm_name}", color=COLOR_TEXT),
+                    bgcolor=COLOR_BG,
+                    color=COLOR_ACCENT,
+                    actions=[
+                        ft.IconButton(
+                            ft.icons.ARROW_BACK,
+                            icon_color=COLOR_ACCENT,
+                            on_click=lambda e: self.page.go("/")
+                        ),
+                        advanced_toggle
+                    ]
+                ),
+                webview
+            ],
+            bgcolor=COLOR_BG
+        )
+    
+    def generate_novnc_html(self, websocket_port: int) -> str:
+        """Generate noVNC HTML for WebView."""
+        # Use noVNC from official CDN (jsdelivr)
+        # Using @novnc/core which is the modern noVNC library
+        return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>noVNC - VM Viewer</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        html, body {{
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }}
+        #noVNC_screen {{
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .loading {{
+            color: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js"></script>
+</head>
+<body>
+    <div id="noVNC_screen">
+        <div class="loading">Connecting to VNC server...</div>
+    </div>
+    <script>
+        let rfb;
+        const screen = document.getElementById('noVNC_screen');
+        
+        function connectVNC() {{
+            try {{
+                // Clear loading message
+                screen.innerHTML = '';
+                
+                rfb = new RFB({{
+                    target: screen,
+                    encrypt: false,
+                    wsProtocols: ['binary'],
+                    credentials: {{ password: '' }}
+                }});
+                
+                rfb.scaleViewport = true;
+                rfb.resizeSession = true;
+                rfb.background = '#000000';
+                
+                rfb.addEventListener("connect", () => {{
+                    console.log("Connected to VNC server");
+                }});
+                
+                rfb.addEventListener("disconnect", (e) => {{
+                    const reason = e.detail.clean ? "clean" : "unclean";
+                    console.log("Disconnected from VNC server:", reason);
+                    screen.innerHTML = '<div class="loading">Disconnected from VNC server</div>';
+                }});
+                
+                rfb.addEventListener("credentialsrequired", () => {{
+                    console.log("Credentials required (if any)");
+                }});
+                
+                // Connect to websockify proxy
+                rfb.connect('ws://127.0.0.1:{websocket_port}');
+            }} catch (error) {{
+                console.error("Error initializing VNC:", error);
+                screen.innerHTML = '<div class="loading">Error: ' + error.message + '</div>';
+            }}
+        }}
+        
+        // Connect when page loads
+        window.addEventListener('load', connectVNC);
+    </script>
+</body>
+</html>
+"""
+    
     def build_vm_list_view(self):
         """Build the main VM list view content."""
         # Header with Create button
@@ -307,6 +522,7 @@ class VMManagerApp:
             status_text = "Running" if is_running else "Stopped"
             status_color = COLOR_ACCENT if is_running else COLOR_TEXT_SECONDARY
         
+        # Make the card clickable to open VNC viewer
         card = ft.Container(
             content=ft.Column(
                 controls=[
@@ -360,6 +576,14 @@ class VMManagerApp:
                                 bgcolor=COLOR_ACCENT if not is_running else COLOR_ACCENT_DARK,
                                 color=COLOR_BG,
                                 on_click=lambda e, name=vm_name: self.toggle_vm(name)
+                            ),
+                            ft.ElevatedButton(
+                                "View",
+                                bgcolor=COLOR_ACCENT if is_running else COLOR_ACCENT_DARK,
+                                color=COLOR_BG,
+                                on_click=lambda e, name=vm_name: self.open_vnc_viewer(name),
+                                disabled=not is_running,
+                                tooltip="Open VNC viewer" if is_running else "Start VM first to view"
                             ),
                             ft.OutlinedButton(
                                 "Edit",
