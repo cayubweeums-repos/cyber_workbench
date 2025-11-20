@@ -335,25 +335,26 @@ class VMManagerApp:
         # Generate noVNC HTML
         novnc_html = self.generate_novnc_html(websocket_port)
         
-        # Convert HTML to data URL (WebView must be added to page before load_html can be called)
-        # So we'll use data URL directly in the url property
+        # Convert to data URL - this works immediately without needing load_html()
         import base64
         html_encoded = base64.b64encode(novnc_html.encode('utf-8')).decode('utf-8')
         data_url = f"data:text/html;charset=utf-8;base64,{html_encoded}"
         
         # Create WebView with noVNC using flet_webview (per Flet docs)
-        # According to docs: use flet_webview.WebView instead of ft.WebView
-        # Set url directly - WebView must be added to page before load_html() can be called
+        # Use data URL directly - this should work immediately
         webview = ftwv.WebView(
             url=data_url,
             on_page_started=lambda _: print("VNC page started loading"),
             on_page_ended=lambda _: print("VNC page finished loading"),
             on_web_resource_error=lambda e: print(f"VNC page error: {e.data}"),
+            on_console_message=lambda e: print(f"VNC console: {e.message}"),
             expand=True,
-            enable_javascript=True
+            enable_javascript=True,
+            bgcolor="#000000"
         )
         
-        print(f"Created WebView with noVNC, connecting to ws://127.0.0.1:{websocket_port}")
+        print(f"Created WebView with noVNC data URL, connecting to ws://127.0.0.1:{websocket_port}")
+        print(f"WebView URL length: {len(data_url)} characters")
         
         # For VNC viewer, remove padding to allow full-screen view
         self.content_container.padding = 0
@@ -412,6 +413,15 @@ class VMManagerApp:
         
         function connectVNC() {{
             try {{
+                console.log("Starting VNC connection to ws://127.0.0.1:{websocket_port}");
+                
+                // Check if RFB is available
+                if (typeof RFB === 'undefined') {{
+                    console.error("RFB class not found - noVNC library not loaded");
+                    screen.innerHTML = '<div class="loading">Error: noVNC library not loaded</div>';
+                    return;
+                }}
+                
                 // Clear loading message
                 screen.innerHTML = '';
                 
@@ -427,13 +437,14 @@ class VMManagerApp:
                 rfb.background = '#000000';
                 
                 rfb.addEventListener("connect", () => {{
-                    console.log("Connected to VNC server");
+                    console.log("✓ Connected to VNC server");
+                    screen.innerHTML = '';
                 }});
                 
                 rfb.addEventListener("disconnect", (e) => {{
                     const reason = e.detail.clean ? "clean" : "unclean";
-                    console.log("Disconnected from VNC server:", reason);
-                    screen.innerHTML = '<div class="loading">Disconnected from VNC server</div>';
+                    console.log("✗ Disconnected from VNC server:", reason);
+                    screen.innerHTML = '<div class="loading">Disconnected: ' + reason + '</div>';
                 }});
                 
                 rfb.addEventListener("credentialsrequired", () => {{
@@ -441,6 +452,7 @@ class VMManagerApp:
                 }});
                 
                 // Connect to websockify proxy
+                console.log("Attempting to connect to websocket...");
                 rfb.connect('ws://127.0.0.1:{websocket_port}');
             }} catch (error) {{
                 console.error("Error initializing VNC:", error);
@@ -448,8 +460,13 @@ class VMManagerApp:
             }}
         }}
         
-        // Connect when page loads
-        window.addEventListener('load', connectVNC);
+        // Connect when page loads or immediately if already loaded
+        if (document.readyState === 'loading') {{
+            window.addEventListener('load', connectVNC);
+        }} else {{
+            // DOM already loaded
+            connectVNC();
+        }}
     </script>
 </body>
 </html>
