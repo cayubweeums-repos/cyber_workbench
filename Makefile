@@ -50,6 +50,11 @@ check-deps-macos:
 	@brew list wimlib >/dev/null 2>&1 || brew install wimlib
 	@echo "Checking for cdrtools..."
 	@brew list cdrtools >/dev/null 2>&1 || brew install cdrtools
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
 	@echo "All macOS dependencies installed"
 
 check-deps-linux:
@@ -86,6 +91,11 @@ check-deps-apt:
 	@if ! command -v genisoimage >/dev/null 2>&1 && ! command -v mkisofs >/dev/null 2>&1; then \
 		sudo apt-get install -y genisoimage; \
 	fi
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
 	@echo "All apt dependencies installed"
 
 check-deps-dnf:
@@ -104,6 +114,11 @@ check-deps-dnf:
 	@rpm -q wimlib >/dev/null 2>&1 || sudo dnf install -y wimlib
 	@echo "Checking for genisoimage..."
 	@rpm -q genisoimage >/dev/null 2>&1 || sudo dnf install -y genisoimage
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
 	@echo "All dnf dependencies installed"
 
 check-deps-yum:
@@ -122,6 +137,11 @@ check-deps-yum:
 	@rpm -q wimlib >/dev/null 2>&1 || sudo yum install -y wimlib
 	@echo "Checking for genisoimage..."
 	@rpm -q genisoimage >/dev/null 2>&1 || sudo yum install -y genisoimage
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
 	@echo "All yum dependencies installed"
 
 check-deps-pacman:
@@ -140,6 +160,11 @@ check-deps-pacman:
 	@pacman -Q wimlib >/dev/null 2>&1 || sudo pacman -S --noconfirm wimlib
 	@echo "Checking for cdrtools..."
 	@pacman -Q cdrtools >/dev/null 2>&1 || sudo pacman -S --noconfirm cdrtools
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
 	@echo "All pacman dependencies installed"
 
 setup-venv:

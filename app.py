@@ -273,7 +273,7 @@ class VMManagerApp:
             color=COLOR_ACCENT,
             actions=[
                 ft.IconButton(
-                    ft.icons.ARROW_BACK,
+                    ft.Icons.ARROW_BACK,
                     icon_color=COLOR_ACCENT,
                     on_click=lambda e: self.page.go("/")
                 ),
