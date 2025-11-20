@@ -46,13 +46,28 @@ class VMManagerApp:
             self.page.on_route_change = self.route_change
             self.page.on_view_pop = self.view_pop
             
-            # Create main content column
-            self.content_column = ft.Column(expand=True, scroll=ft.ScrollMode.AUTO)
+            # Set page background color
+            self.page.bgcolor = COLOR_BG
+            
+            # Create main content column with padding
+            self.content_column = ft.Column(
+                expand=True, 
+                scroll=ft.ScrollMode.AUTO,
+                spacing=0
+            )
+            
+            # Wrap content in container with padding to match original styling
+            self.content_container = ft.Container(
+                content=self.content_column,
+                expand=True,
+                padding=20,
+                bgcolor=COLOR_BG
+            )
             
             # Add main layout
             self.page.add(
                 ft.Column(
-                    [self.content_column],
+                    [self.content_container],
                     expand=True
                 )
             )
@@ -69,6 +84,9 @@ class VMManagerApp:
     def route_change(self, e):
         """Handle route changes and build views."""
         troute = ft.TemplateRoute(self.page.route)
+        
+        # Ensure page background is set
+        self.page.bgcolor = COLOR_BG
         
         # Clear content
         self.content_column.controls.clear()
@@ -96,7 +114,9 @@ class VMManagerApp:
             vnc_content = self.build_vnc_viewer_content(vm_name)
             self.content_column.controls.append(vnc_content)
         elif troute.match("/"):
-            # Main VM list view
+            # Main VM list view - restore padding
+            self.content_container.padding = 20
+            
             main_content = self.build_vm_list_view()
             
             # Apply advanced mode transformations if enabled
@@ -332,6 +352,9 @@ class VMManagerApp:
                 webview.load_html(novnc_html, base_url="http://localhost")
         except Exception as e:
             print(f"Note: load_html not available, using data URL: {e}")
+        
+        # For VNC viewer, remove padding to allow full-screen view
+        self.content_container.padding = 0
         
         return ft.Container(
             content=webview,
