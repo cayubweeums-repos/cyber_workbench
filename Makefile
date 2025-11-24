@@ -1,10 +1,13 @@
-.PHONY: start stop check-deps setup-venv setup-dirs detect-os
+.PHONY: start stop check-deps setup-venv setup-dirs setup-nodejs detect-os
 
 # Get the absolute path of the repo root
 REPO_ROOT := $(shell pwd)
 VENV := $(REPO_ROOT)/venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
+WEB_UI_DIR := $(REPO_ROOT)/web-ui
+NODE := node
+NPM := npm
 
 # Detect OS and Architecture
 UNAME_S := $(shell uname -s)
@@ -14,17 +17,13 @@ detect-os:
 	@echo "Detected OS: $(UNAME_S)"
 	@echo "Detected Architecture: $(UNAME_M)"
 
-start: check-deps setup-venv setup-dirs
-	@echo "Starting VM Manager..."
-	@$(PYTHON) -u $(REPO_ROOT)/app.py
+start: check-deps setup-venv setup-dirs setup-nodejs
+	@echo "Starting VM Manager Web UI..."
+	@cd $(WEB_UI_DIR) && $(NODE) server.js
 
 stop:
 	@echo "Stopping VM Manager..."
-	@if [ "$(UNAME_S)" = "Linux" ]; then \
-		pkill -f "app.py" || true; \
-	else \
-		pkill -f "app.py" || true; \
-	fi
+	@pkill -f "node.*server.js" || pkill -f "web-ui/server.js" || true
 	@echo "VM Manager stopped"
 
 check-deps: detect-os
@@ -43,6 +42,11 @@ check-deps-macos:
 	@if ! command -v brew >/dev/null 2>&1; then \
 		echo "Homebrew not found. Installing Homebrew..."; \
 		/bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; \
+	fi
+	@echo "Checking for node..."
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "Node.js not found. Installing Node.js..."; \
+		brew install node; \
 	fi
 	@echo "Checking for qemu..."
 	@brew list qemu >/dev/null 2>&1 || brew install qemu
@@ -184,4 +188,13 @@ setup-dirs:
 		echo "Copied autounattend.xml to vms/shared/"; \
 	fi
 	@echo "Directory structure ready"
+
+setup-nodejs:
+	@echo "Setting up Node.js dependencies..."
+	@if [ ! -d "$(WEB_UI_DIR)/node_modules" ]; then \
+		cd $(WEB_UI_DIR) && $(NPM) install; \
+	else \
+		echo "Node.js dependencies already installed"; \
+	fi
+	@echo "Node.js setup complete"
 
