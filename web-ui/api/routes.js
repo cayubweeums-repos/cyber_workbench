@@ -6,6 +6,7 @@ const express = require('express');
 const vmRoutes = require('./vm');
 const operations = require('./operations');
 const { getProgress } = require('./progress');
+const docsRoutes = require('./docs');
 
 function setupRoutes(app) {
   const router = express.Router();
@@ -20,6 +21,7 @@ function setupRoutes(app) {
   router.post('/vms/:name/start', vmRoutes.startVM);
   router.post('/vms/:name/stop', vmRoutes.stopVM);
   router.get('/vms/:name/viewer-port', vmRoutes.getViewerPort);
+  router.get('/vms/:name/desktop-ready', vmRoutes.checkDesktopReady);
   
   // VM creation workflow endpoints
   router.post('/vms/:name/create-disk', async (req, res) => {
@@ -71,6 +73,11 @@ function setupRoutes(app) {
     const progress = getProgress(name);
     res.json({ success: true, progress });
   });
+  
+  // Documentation routes
+  router.get('/docs/list', docsRoutes.listDocs);
+  router.get('/docs/content/:path(*)', docsRoutes.getDocContent);
+  router.get('/docs/content', docsRoutes.getDocContent);
   
   app.use('/api', router);
 }

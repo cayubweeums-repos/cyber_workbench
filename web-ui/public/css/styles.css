@@ -167,6 +167,13 @@ body {
   gap: 4px;
 }
 
+.vm-progress-stage {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+  margin-bottom: 2px;
+}
+
 .vm-progress-message {
   font-size: 13px;
   color: var(--color-text);

@@ -1142,6 +1142,16 @@ class VMOperations:
                 qemu_binary = "qemu-system-aarch64"
                 accel = "tcg"  # Fallback for other systems
             
+            # Create QGA and QMP socket directories
+            vm_dir = self.vms_dir / vm_name
+            qga_socket_dir = vm_dir / "qga"
+            qmp_socket_dir = vm_dir / "qmp"
+            qga_socket_dir.mkdir(exist_ok=True)
+            qmp_socket_dir.mkdir(exist_ok=True)
+            
+            qga_socket = qga_socket_dir / "qga.sock"
+            qmp_socket = qmp_socket_dir / "qmp.sock"
+            
             # Build QEMU command
             cmd = [
                 qemu_binary,
@@ -1167,7 +1177,13 @@ class VMOperations:
                 "-bios", ovmf,
                 "-rtc", "base=localtime",
                 "-display", "vnc=:0",
-                "-vnc", "127.0.0.1:0"
+                "-vnc", "127.0.0.1:0",
+                # QEMU Guest Agent (QGA) configuration
+                "-chardev", f"socket,path={qga_socket},server=on,wait=off,id=qga0",
+                "-device", "virtio-serial-pci,id=virtio-serial0",
+                "-device", "virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
+                # QEMU Machine Protocol (QMP) for VM management
+                "-qmp", f"unix:{qmp_socket},server=on,wait=off"
             ]
             
             # On Linux, if KVM is not available, QEMU will automatically fall back to TCG

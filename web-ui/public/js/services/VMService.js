@@ -57,6 +57,11 @@ class VMService {
     return response.progress || null;
   }
 
+  async checkDesktopReady(name) {
+    const response = await this.api.get(`/vms/${name}/desktop-ready`);
+    return response;
+  }
+
   async createDisk(name, diskSizeGb) {
     const response = await this.api.post(`/vms/${name}/create-disk`, { disk_size_gb: diskSizeGb });
     return response;

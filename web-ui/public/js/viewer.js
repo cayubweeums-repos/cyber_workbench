@@ -41,23 +41,57 @@ class VMViewer {
         const progress = await this.vmService.getProgress(vmName);
         
         if (progress) {
-          document.getElementById('viewer-progress-fill').style.width = `${progress.percent || 0}%`;
-          document.getElementById('viewer-progress-stage').textContent = progress.stage || 'Processing...';
-          document.getElementById('viewer-progress-message').textContent = progress.message || '';
-          document.getElementById('viewer-progress-details').textContent = progress.details || '';
+          const percent = progress.percent || 0;
+          const stage = progress.stage || 'Processing...';
+          const message = progress.message || '';
+          const details = progress.details || '';
+          
+          document.getElementById('viewer-progress-fill').style.width = `${percent}%`;
+          document.getElementById('viewer-progress-stage').textContent = stage;
+          document.getElementById('viewer-progress-message').textContent = message;
+          document.getElementById('viewer-progress-details').textContent = details;
+          
+          // If stage is "Ready", don't auto-transition - let user start VM manually
+          if (stage === 'Ready' && percent === 100) {
+            // Keep showing progress, user can start VM when ready
+            return;
+          }
         } else {
           // No progress, check if VM is running
           const running = await this.vmService.getStatus(vmName);
           
           if (running) {
-            // VM started, get viewer port
-            const port = await this.vmService.getViewerPort(vmName);
-            
-            if (port) {
-              this.stopProgressPolling();
-              document.getElementById('viewer-progress').style.display = 'none';
-              document.getElementById('novnc-canvas').style.display = 'block';
-              this.initNoVNC(port);
+            // VM started, check if desktop is ready
+            try {
+              const desktopReady = await this.vmService.checkDesktopReady(vmName);
+              
+              if (desktopReady.ready) {
+                // Desktop is ready, get viewer port and show VNC
+                const port = await this.vmService.getViewerPort(vmName);
+                
+                if (port) {
+                  this.stopProgressPolling();
+                  document.getElementById('viewer-progress').style.display = 'none';
+                  document.getElementById('novnc-canvas').style.display = 'block';
+                  this.initNoVNC(port);
+                }
+              } else {
+                // Desktop not ready yet, show status
+                document.getElementById('viewer-progress-stage').textContent = 'Waiting for desktop...';
+                document.getElementById('viewer-progress-message').textContent = desktopReady.error || 'Desktop is starting up';
+                document.getElementById('viewer-progress-details').textContent = desktopReady.details || '';
+              }
+            } catch (error) {
+              // QGA not available or error, try to get viewer port anyway
+              console.warn('Desktop ready check failed:', error);
+              const port = await this.vmService.getViewerPort(vmName);
+              
+              if (port) {
+                this.stopProgressPolling();
+                document.getElementById('viewer-progress').style.display = 'none';
+                document.getElementById('novnc-canvas').style.display = 'block';
+                this.initNoVNC(port);
+              }
             }
           }
         }
@@ -67,7 +101,7 @@ class VMViewer {
     };
     
     updateProgress();
-    this.progressInterval = setInterval(updateProgress, 1000);
+    this.progressInterval = setInterval(updateProgress, 2000); // Check every 2 seconds
   }
 
   stopProgressPolling() {

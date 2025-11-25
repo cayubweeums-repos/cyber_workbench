@@ -18,12 +18,13 @@ class VMCard extends BaseComponent {
   }
 
   getHTML() {
-    const progressHTML = this.vm.isProcessing() ? this.getProgressHTML() : '';
+    const progressHTML = this.vm.isProcessing() || (this.vm.progress && this.vm.progress.stage) ? this.getProgressHTML() : '';
+    const statusText = this.vm.progress && this.vm.progress.stage ? this.vm.progress.stage : this.vm.statusText;
     
     return `
       <div class="vm-card-header">
         <div class="vm-name">${this.vm.name}</div>
-        <div class="vm-status ${this.vm.status}">${this.vm.statusText}</div>
+        <div class="vm-status ${this.vm.status}">${statusText}</div>
       </div>
       ${progressHTML}
       <div class="vm-specs">
@@ -51,6 +52,7 @@ class VMCard extends BaseComponent {
   getProgressHTML() {
     const progress = this.vm.progress;
     const percent = progress.percent || 0;
+    const stage = progress.stage || '';
     
     return `
       <div class="vm-progress">
@@ -58,6 +60,7 @@ class VMCard extends BaseComponent {
           <div class="vm-progress-fill" style="width: ${percent}%"></div>
         </div>
         <div class="vm-progress-info">
+          <span class="vm-progress-stage">${stage}</span>
           <span class="vm-progress-message">${progress.message || ''}</span>
           ${progress.details ? `<span class="vm-progress-details">${progress.details}</span>` : ''}
         </div>

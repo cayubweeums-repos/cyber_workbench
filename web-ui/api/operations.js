@@ -178,9 +178,10 @@ except Exception as e:
           } else if (progress.status === 'complete') {
             setProgress(vmName, {
               stage: 'Downloading Windows ISO',
-              message: 'Download complete',
+              message: 'Download complete. Starting ISO preparation...',
               percent: 100
             });
+            // Don't clear progress - let prepareISO take over
           } else if (progress.status === 'error') {
             // Error occurred during download
             lastProgress = progress;
@@ -242,6 +243,13 @@ function formatBytes(bytes) {
  * Prepare ISO for VM (with progress tracking)
  */
 async function prepareISOForVM(vmName) {
+  // Set initial progress to show we're starting ISO preparation
+  setProgress(vmName, {
+    stage: 'Preparing ISO',
+    message: 'Starting ISO preparation...',
+    percent: 0
+  });
+  
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
     const script = `
@@ -309,12 +317,17 @@ print(json.dumps({"type": "result", "success": result}))
           } else if (data.type === 'result') {
             if (data.success) {
               setProgress(vmName, {
-                stage: 'Complete',
-                message: 'ISO preparation complete',
+                stage: 'Ready',
+                message: 'VM is ready to start',
                 percent: 100
               });
               completed = true;
             } else {
+              setProgress(vmName, {
+                stage: 'Error',
+                message: 'ISO preparation failed',
+                percent: 0
+              });
               completed = true; // Mark as completed even on failure
             }
           }
@@ -447,6 +460,48 @@ print('SUCCESS' if result else 'FAILED')
 /**
  * Start websockify proxy
  */
+/**
+ * Check if VM desktop is ready
+ */
+async function checkDesktopReady(vmName) {
+  return new Promise((resolve, reject) => {
+    const python = require('./python-bridge').getPythonExecutable();
+    const script = `
+import sys
+import json
+sys.path.insert(0, '${REPO_ROOT}')
+from qga_client import check_vm_desktop_ready
+
+try:
+    result = check_vm_desktop_ready('${vmName}', '${REPO_ROOT}')
+    print(json.dumps(result))
+except Exception as e:
+    print(json.dumps({"ready": False, "error": str(e), "details": "Failed to check desktop ready"}))
+`;
+
+    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    let output = '';
+
+    proc.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+
+    proc.stderr.on('data', (data) => {
+      // Log errors but don't fail
+      console.warn('QGA check stderr:', data.toString());
+    });
+
+    proc.on('close', (code) => {
+      try {
+        const result = JSON.parse(output.trim());
+        resolve(result);
+      } catch (e) {
+        reject(new Error(`Failed to parse desktop-ready result: ${output}`));
+      }
+    });
+  });
+}
+
 async function startWebsockify(vmName, vncPort = 5900) {
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
@@ -487,6 +542,7 @@ module.exports = {
   prepareISOForVM,
   startVM,
   stopVM,
-  startWebsockify
+  startWebsockify,
+  checkDesktopReady
 };
 

@@ -239,6 +239,20 @@ async function getViewerPort(req, res) {
   }
 }
 
+/**
+ * Check if VM desktop is ready
+ */
+async function checkDesktopReady(req, res) {
+  try {
+    const { name } = req.params;
+    
+    const result = await operations.checkDesktopReady(name);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 module.exports = {
   listVMs,
   getVMConfig,
@@ -248,6 +262,7 @@ module.exports = {
   getVMStatus,
   startVM,
   stopVM,
-  getViewerPort
+  getViewerPort,
+  checkDesktopReady
 };
 

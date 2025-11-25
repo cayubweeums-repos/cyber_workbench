@@ -102,8 +102,14 @@ class VMManagerApp {
       
       console.log(`VM creation workflow completed for ${name}`);
       
-      // Refresh when done
-      setTimeout(() => this.vmList.load(), 2000);
+      // Clear progress after a delay to show "Ready" status
+      setTimeout(async () => {
+        await this.vmList.load();
+        // Keep progress visible for a bit longer so user sees "Ready"
+        setTimeout(() => {
+          // Progress will be cleared when VM is started or after timeout
+        }, 5000);
+      }, 2000);
     } catch (error) {
       console.error('VM creation workflow error:', error);
       // Show error to user

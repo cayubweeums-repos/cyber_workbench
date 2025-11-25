@@ -18,6 +18,11 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Setup API routes
 setupRoutes(app);
 
+// Serve docs.html for /docs route
+app.get('/docs', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'docs.html'));
+});
+
 // Serve index.html for all non-API routes
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

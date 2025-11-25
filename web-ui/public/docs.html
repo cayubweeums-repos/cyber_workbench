@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - VM Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/docs.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/default.min.css">
+</head>
+<body>
+    <div class="docs-container">
+        <!-- Sidebar Navigation -->
+        <aside class="docs-sidebar">
+            <h2>Documentation</h2>
+            <nav>
+                <ul class="docs-nav" id="docs-nav">
+                    <li class="docs-loading">
+                        <div class="spinner"></div>
+                        <p>Loading...</p>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="docs-content" id="docs-content">
+            <div class="docs-loading">
+                <div class="spinner"></div>
+                <p>Loading documentation...</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = '/api/docs';
+        let currentPath = '';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNavigation();
+            loadContent();
+        });
+
+        // Load navigation sidebar
+        async function loadNavigation() {
+            try {
+                const response = await fetch(`${API_BASE}/list`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderNavigation(data.listing);
+                } else {
+                    showError('Failed to load navigation');
+                }
+            } catch (error) {
+                console.error('Navigation error:', error);
+                showError('Failed to load navigation');
+            }
+        }
+
+        // Render navigation sidebar
+        function renderNavigation(listing, basePath = '') {
+            const nav = document.getElementById('docs-nav');
+            nav.innerHTML = '';
+
+            if (listing.length === 0) {
+                nav.innerHTML = '<li style="color: var(--color-text-secondary); padding: 10px;">No documentation files found</li>';
+                return;
+            }
+
+            listing.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'docs-nav-item';
+                
+                const link = document.createElement('a');
+                link.href = '#';
+                link.className = `docs-nav-link ${item.type}`;
+                link.textContent = item.name.replace('.md', '');
+                link.dataset.path = item.path;
+
+                if (item.type === 'directory') {
+                    link.className += ' directory';
+                } else {
+                    link.className += ' file';
+                }
+
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    loadContent(item.path);
+                    updateActiveLink(link);
+                });
+
+                li.appendChild(link);
+                nav.appendChild(li);
+            });
+        }
+
+        // Update active navigation link
+        function updateActiveLink(activeLink) {
+            document.querySelectorAll('.docs-nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            activeLink.classList.add('active');
+        }
+
+        // Load content
+        async function loadContent(path = '') {
+            currentPath = path;
+            const contentDiv = document.getElementById('docs-content');
+            contentDiv.innerHTML = '<div class="docs-loading"><div class="spinner"></div><p>Loading...</p></div>';
+
+            try {
+                const url = path ? `${API_BASE}/content/${path}` : `${API_BASE}/content`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.isDirectory) {
+                        renderDirectory(data.listing, path);
+                    } else {
+                        renderMarkdown(data.content);
+                    }
+                } else {
+                    showError(data.error || 'Failed to load content');
+                }
+            } catch (error) {
+                console.error('Content error:', error);
+                showError('Failed to load documentation');
+            }
+        }
+
+        // Render markdown content
+        function renderMarkdown(html) {
+            const contentDiv = document.getElementById('docs-content');
+            contentDiv.innerHTML = html;
+            
+            // Update active link based on current path
+            const activeLink = document.querySelector(`[data-path="${currentPath}"]`);
+            if (activeLink) {
+                updateActiveLink(activeLink);
+            }
+
+            // Make internal links work
+            contentDiv.querySelectorAll('a').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.startsWith('http') && !href.startsWith('#')) {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        // Extract relative path from href
+                        const relativePath = href.replace(/^\/+/, '');
+                        loadContent(relativePath);
+                    });
+                }
+            });
+        }
+
+        // Render directory listing
+        function renderDirectory(listing, path) {
+            const contentDiv = document.getElementById('docs-content');
+            
+            let html = '<div class="docs-directory">';
+            html += `<h2>${path || 'Documentation'}</h2>`;
+            html += '<ul class="docs-directory-list">';
+
+            listing.forEach(item => {
+                html += '<li class="docs-directory-item">';
+                html += `<a href="#" class="docs-directory-link" data-path="${item.path}">`;
+                html += `<span class="docs-directory-icon">${item.type === 'directory' ? '📁' : '📄'}</span>`;
+                html += `<span>${item.name}</span>`;
+                html += '</a>';
+                html += '</li>';
+            });
+
+            html += '</ul></div>';
+            contentDiv.innerHTML = html;
+
+            // Add click handlers
+            contentDiv.querySelectorAll('.docs-directory-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const itemPath = link.dataset.path;
+                    loadContent(itemPath);
+                });
+            });
+        }
+
+        // Show error
+        function showError(message) {
+            const contentDiv = document.getElementById('docs-content');
+            contentDiv.innerHTML = `
+                <div class="docs-error">
+                    <h2>Error</h2>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Handle browser back/forward
+        window.addEventListener('popstate', (e) => {
+            if (e.state && e.state.path) {
+                loadContent(e.state.path);
+            }
+        });
+    </script>
+</body>
+</html>
+
