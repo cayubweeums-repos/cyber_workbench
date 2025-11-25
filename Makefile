@@ -191,10 +191,6 @@ setup-dirs:
 
 setup-nodejs:
 	@echo "Setting up Node.js dependencies..."
-	@if [ ! -d "$(WEB_UI_DIR)/node_modules" ]; then \
-		cd $(WEB_UI_DIR) && $(NPM) install; \
-	else \
-		echo "Node.js dependencies already installed"; \
-	fi
+	@cd $(WEB_UI_DIR) && $(NPM) install
 	@echo "Node.js setup complete"
 
