@@ -108,9 +108,16 @@ class VMManagerApp {
       console.log(`Downloading ISO for ${name}...`);
       await this.vmService.downloadISO(name);
       
-      // Step 3: Prepare ISO
+      // Step 3: Prepare ISO - prompt for sudo password
       console.log(`Preparing ISO for ${name}...`);
-      await this.vmService.prepareISO(name);
+      const sudoPassword = prompt('ISO preparation requires sudo access. Please enter your password:');
+      if (sudoPassword === null) {
+        // User cancelled
+        alert('ISO preparation cancelled. VM cannot be created without ISO preparation.');
+        return;
+      }
+      
+      await this.vmService.prepareISO(name, sudoPassword);
       
       console.log(`VM creation workflow completed for ${name}`);
       
@@ -124,8 +131,8 @@ class VMManagerApp {
       }, 2000);
     } catch (error) {
       console.error('VM creation workflow error:', error);
-      // Show error to user
-      alert(`VM creation failed: ${error.message}`);
+      // Show detailed error to user
+      alert(`VM creation failed: ${error.message}\n\nCheck the browser console for detailed logs.`);
     }
   }
 

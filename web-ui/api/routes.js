@@ -56,9 +56,10 @@ function setupRoutes(app) {
   router.post('/vms/:name/prepare-iso', async (req, res) => {
     try {
       const { name } = req.params;
+      const { sudo_password } = req.body;
       
       // Wait for preparation to complete
-      await operations.prepareISOForVM(name);
+      await operations.prepareISOForVM(name, sudo_password);
       
       res.json({ success: true, message: 'ISO preparation completed' });
     } catch (error) {

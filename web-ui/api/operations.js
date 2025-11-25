@@ -29,7 +29,11 @@ result = ops.create_vm_disk('${vmName}', ${sizeGb})
 print('SUCCESS' if result else 'FAILED')
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let output = '';
 
     proc.stdout.on('data', (data) => {
@@ -157,12 +161,20 @@ except Exception as e:
     sys.exit(1)
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let lastProgress = { percent: 0, status: 'starting' };
     let stderrOutput = '';
 
     proc.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(l => l.trim());
+      const output = data.toString();
+      // Log all stdout to console
+      console.log(`[ISO Download ${vmName}]`, output);
+      
+      const lines = output.split('\n').filter(l => l.trim());
       for (const line of lines) {
         try {
           const progress = JSON.parse(line);
@@ -192,22 +204,28 @@ except Exception as e:
             });
           }
         } catch (e) {
-          // Ignore parse errors for non-JSON lines
-          console.warn('Failed to parse progress line:', line);
+          // Log non-JSON lines to console for debugging
+          if (line && !line.includes('PROGRESS:')) {
+            console.log(`[ISO Download ${vmName} RAW]`, line);
+          }
         }
       }
     });
 
     proc.stderr.on('data', (data) => {
       // Collect stderr output for error reporting
-      stderrOutput += data.toString();
       const errorText = data.toString();
-      if (errorText.includes('error') || errorText.includes('Error') || errorText.includes('Exception') || errorText.includes('Traceback')) {
-        console.error('Python download error:', errorText);
-      }
+      stderrOutput += errorText;
+      // Log all stderr to console
+      console.error(`[ISO Download ${vmName}]`, errorText);
     });
 
     proc.on('close', (code) => {
+      console.log(`[ISO Download ${vmName}] Process exited with code ${code}`);
+      if (stderrOutput) {
+        console.error(`[ISO Download ${vmName}] Full stderr:`, stderrOutput);
+      }
+      
       // Check if we got a complete status before checking exit code
       if (lastProgress.status === 'complete') {
         resolve(true);
@@ -223,9 +241,13 @@ except Exception as e:
           const errorMatch = stderrOutput.match(/(?:Error|Exception|Traceback)[^\n]*/);
           if (errorMatch) {
             errorMsg = errorMatch[0].substring(0, 200); // Limit length
+          } else {
+            errorMsg = stderrOutput.substring(0, 500); // Use full stderr if no match
           }
         }
-        reject(new Error(`Failed to download ISO: ${errorMsg}`));
+        const fullError = `Failed to download ISO: ${errorMsg}\n\nFull stderr:\n${stderrOutput}`;
+        console.error(`[ISO Download ${vmName}]`, fullError);
+        reject(new Error(fullError));
       }
     });
   });
@@ -242,7 +264,7 @@ function formatBytes(bytes) {
 /**
  * Prepare ISO for VM (with progress tracking)
  */
-async function prepareISOForVM(vmName) {
+async function prepareISOForVM(vmName, sudoPassword = null) {
   // Set initial progress to show we're starting ISO preparation
   setProgress(vmName, {
     stage: 'Preparing ISO',
@@ -252,9 +274,14 @@ async function prepareISOForVM(vmName) {
   
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
+    
+    // Encode sudo password for safe passing
+    const sudoPasswordB64 = sudoPassword ? Buffer.from(sudoPassword).toString('base64') : '';
+    
     const script = `
 import sys
 import json
+import base64
 sys.path.insert(0, '${REPO_ROOT}')
 from vm_operations import VMOperations
 
@@ -262,11 +289,18 @@ def progress(msg):
     print(json.dumps({"type": "progress", "message": msg}), flush=True)
 
 ops = VMOperations('${REPO_ROOT}')
+${sudoPasswordB64 ? `ops.set_sudo_password(base64.b64decode('${sudoPasswordB64}').decode('utf-8'))` : ''}
 result = ops.prepare_iso_for_vm('${vmName}', progress)
 print(json.dumps({"type": "result", "success": result}))
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
+    let allOutput = '';
+    let allErrors = '';
     const stages = [
       'Extracting ISO',
       'Downloading VirtIO drivers',
@@ -282,7 +316,12 @@ print(json.dumps({"type": "result", "success": result}))
     let completed = false;
     
     proc.stdout.on('data', (data) => {
-      const lines = data.toString().split('\n').filter(l => l.trim());
+      const output = data.toString();
+      allOutput += output;
+      // Log all output to console
+      console.log(`[ISO Prep ${vmName}]`, output);
+      
+      const lines = output.split('\n').filter(l => l.trim());
       for (const line of lines) {
         try {
           const data = JSON.parse(line);
@@ -346,8 +385,13 @@ print(json.dumps({"type": "result", "success": result}))
     });
 
     proc.stderr.on('data', (data) => {
+      const error = data.toString();
+      allErrors += error;
+      // Log all errors to console
+      console.error(`[ISO Prep ${vmName} ERROR]`, error);
+      
       // Progress messages might go to stderr
-      const text = data.toString();
+      const text = error;
       if (text.includes('PROGRESS:')) {
         const message = text.substring(text.indexOf('PROGRESS:') + 9).trim();
         setProgress(vmName, {
@@ -359,14 +403,26 @@ print(json.dumps({"type": "result", "success": result}))
     });
 
     proc.on('close', (code) => {
+      // Log final status
+      console.log(`[ISO Prep ${vmName}] Process exited with code ${code}`);
+      if (allOutput) {
+        console.log(`[ISO Prep ${vmName}] Full stdout:`, allOutput);
+      }
+      if (allErrors) {
+        console.error(`[ISO Prep ${vmName}] Full stderr:`, allErrors);
+      }
+      
       if (code === 0 && completed) {
         resolve(true);
       } else if (code === 0 && !completed) {
         // Process exited but we didn't get a result - might still be success
+        console.warn(`[ISO Prep ${vmName}] Process completed but no result received`);
         resolve(true);
       } else {
         clearProgress(vmName);
-        reject(new Error(`Failed to prepare ISO: process exited with code ${code}`));
+        const errorMsg = `Failed to prepare ISO: process exited with code ${code}\n\nOutput:\n${allOutput}\n\nErrors:\n${allErrors}`;
+        console.error(`[ISO Prep ${vmName}]`, errorMsg);
+        reject(new Error(errorMsg));
       }
     });
   });
@@ -403,15 +459,23 @@ except Exception as e:
     sys.exit(1)
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let output = '';
 
     proc.stdout.on('data', (data) => {
-      output += data.toString();
+      const text = data.toString();
+      output += text;
+      console.log(`[VM Start ${vmName}]`, text);
     });
 
     proc.stderr.on('data', (data) => {
-      output += data.toString();
+      const text = data.toString();
+      output += text;
+      console.error(`[VM Start ${vmName} ERROR]`, text);
     });
 
     proc.on('close', (code) => {
@@ -440,7 +504,11 @@ result = ops.stop_vm('${vmName}')
 print('SUCCESS' if result else 'FAILED')
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let output = '';
 
     proc.stdout.on('data', (data) => {
@@ -479,7 +547,11 @@ except Exception as e:
     print(json.dumps({"ready": False, "error": str(e), "details": "Failed to check desktop ready"}))
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let output = '';
 
     proc.stdout.on('data', (data) => {
@@ -518,7 +590,11 @@ else:
     print("FAILED")
 `;
 
-    const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', script], { 
+      cwd: REPO_ROOT,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
     let output = '';
 
     proc.stdout.on('data', (data) => {

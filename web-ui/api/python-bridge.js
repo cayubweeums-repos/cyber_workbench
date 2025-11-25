@@ -52,25 +52,34 @@ except Exception as e:
 `;
 
     const python = getPythonExecutable();
-    const proc = spawn(python, ['-c', pythonScript], {
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', pythonScript], {
       cwd: REPO_ROOT,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
 
     let stdout = '';
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const text = data.toString();
+      stdout += text;
+      console.log(`[Python Bridge ${moduleName}.${functionName}]`, text);
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const text = data.toString();
+      stderr += text;
+      console.error(`[Python Bridge ${moduleName}.${functionName} ERROR]`, text);
     });
 
     proc.on('close', (code) => {
+      console.log(`[Python Bridge ${moduleName}.${functionName}] Process exited with code ${code}`);
       if (code !== 0) {
-        reject(new Error(`Python process exited with code ${code}: ${stderr}`));
+        const errorMsg = `Python process exited with code ${code}: ${stderr}`;
+        console.error(`[Python Bridge ${moduleName}.${functionName}]`, errorMsg);
+        reject(new Error(errorMsg));
         return;
       }
 
@@ -79,10 +88,14 @@ except Exception as e:
         if (result.success) {
           resolve(result.data !== undefined ? result.data : result);
         } else {
-          reject(new Error(result.error || 'Python function returned failure'));
+          const errorMsg = result.error || 'Python function returned failure';
+          console.error(`[Python Bridge ${moduleName}.${functionName}]`, errorMsg);
+          reject(new Error(errorMsg));
         }
       } catch (e) {
-        reject(new Error(`Failed to parse Python output: ${e.message}\nOutput: ${stdout}`));
+        const errorMsg = `Failed to parse Python output: ${e.message}\nOutput: ${stdout}`;
+        console.error(`[Python Bridge ${moduleName}.${functionName}]`, errorMsg);
+        reject(new Error(errorMsg));
       }
     });
   });
@@ -115,30 +128,42 @@ try:
         output = {"success": True, "data": result}
     print(json.dumps(output))
 except Exception as e:
+    import traceback
+    error_details = traceback.format_exc()
+    print(json.dumps({"success": False, "error": str(e), "traceback": error_details}), file=sys.stderr)
     print(json.dumps({"success": False, "error": str(e)}))
     sys.exit(1)
 `;
 
     const python = getPythonExecutable();
-    const proc = spawn(python, ['-c', pythonScript], {
+    // Use unbuffered Python output for real-time logging
+    const proc = spawn(python, ['-u', '-c', pythonScript], {
       cwd: REPO_ROOT,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
     });
 
     let stdout = '';
     let stderr = '';
 
     proc.stdout.on('data', (data) => {
-      stdout += data.toString();
+      const text = data.toString();
+      stdout += text;
+      console.log(`[Python Bridge ${moduleName}.${className}.${methodName}]`, text);
     });
 
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const text = data.toString();
+      stderr += text;
+      console.error(`[Python Bridge ${moduleName}.${className}.${methodName} ERROR]`, text);
     });
 
     proc.on('close', (code) => {
+      console.log(`[Python Bridge ${moduleName}.${className}.${methodName}] Process exited with code ${code}`);
       if (code !== 0) {
-        reject(new Error(`Python process exited with code ${code}: ${stderr}`));
+        const errorMsg = `Python process exited with code ${code}: ${stderr}`;
+        console.error(`[Python Bridge ${moduleName}.${className}.${methodName}]`, errorMsg);
+        reject(new Error(errorMsg));
         return;
       }
 
@@ -147,10 +172,17 @@ except Exception as e:
         if (result.success) {
           resolve(result.data !== undefined ? result.data : result);
         } else {
-          reject(new Error(result.error || 'Python function returned failure'));
+          const errorMsg = result.error || 'Python function returned failure';
+          console.error(`[Python Bridge ${moduleName}.${className}.${methodName}]`, errorMsg);
+          if (result.traceback) {
+            console.error(`[Python Bridge ${moduleName}.${className}.${methodName} TRACEBACK]`, result.traceback);
+          }
+          reject(new Error(errorMsg));
         }
       } catch (e) {
-        reject(new Error(`Failed to parse Python output: ${e.message}\nOutput: ${stdout}`));
+        const errorMsg = `Failed to parse Python output: ${e.message}\nOutput: ${stdout}`;
+        console.error(`[Python Bridge ${moduleName}.${className}.${methodName}]`, errorMsg);
+        reject(new Error(errorMsg));
       }
     });
   });

@@ -72,8 +72,8 @@ class VMService {
     return response;
   }
 
-  async prepareISO(name) {
-    const response = await this.api.post(`/vms/${name}/prepare-iso`);
+  async prepareISO(name, sudoPassword = null) {
+    const response = await this.api.post(`/vms/${name}/prepare-iso`, { sudo_password: sudoPassword });
     return response;
   }
 
