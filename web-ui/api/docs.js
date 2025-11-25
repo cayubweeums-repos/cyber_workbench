@@ -8,20 +8,54 @@ const path = require('path');
 const { marked } = require('marked');
 const hljs = require('highlight.js');
 
+// Configure marked with custom renderer for Mermaid
+const renderer = new marked.Renderer();
+
+// Custom code block renderer to handle Mermaid
+renderer.code = function(code, lang, escaped) {
+  // If it's a mermaid diagram, output directly as mermaid div
+  // Mermaid.js will process divs with class "mermaid"
+  if (lang === 'mermaid') {
+    // Code is already escaped by marked, but we need it as plain text for Mermaid
+    // Use a temporary approach: put it in a div that client-side JS will process
+    return `<div class="mermaid">${code}</div>\n`;
+  }
+  
+  // For other code blocks, use default highlighting
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      const highlighted = hljs.highlight(code, { language: lang }).value;
+      return `<pre><code class="language-${lang}">${highlighted}</code></pre>\n`;
+    } catch (err) {
+      console.error('Highlight error:', err);
+    }
+  }
+  
+  // Fallback to auto-detection
+  try {
+    const highlighted = hljs.highlightAuto(code).value;
+    return `<pre><code>${highlighted}</code></pre>\n`;
+  } catch (err) {
+    return `<pre><code>${escaped ? code : escapeHtml(code)}</code></pre>\n`;
+  }
+};
+
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
+
 // Configure marked with GitHub-flavored markdown
 marked.setOptions({
   gfm: true,
   breaks: true,
-  highlight: function(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(code, { language: lang }).value;
-      } catch (err) {
-        console.error('Highlight error:', err);
-      }
-    }
-    return hljs.highlightAuto(code).value;
-  }
+  renderer: renderer
 });
 
 const REPO_ROOT = path.join(__dirname, '../..');

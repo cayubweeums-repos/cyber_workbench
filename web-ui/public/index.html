@@ -10,7 +10,14 @@
     <div class="container">
         <div class="header">
             <h1>VM Manager</h1>
-            <button class="btn" id="create-vm-btn">Create VM</button>
+            <div class="header-actions">
+                <a href="/api/docs/list" class="btn btn-secondary" target="_blank" id="docs-link">Docs</a>
+                <label class="advanced-toggle">
+                    <input type="checkbox" id="advanced-mode-toggle">
+                    <span>Advanced Mode</span>
+                </label>
+                <button class="btn" id="create-vm-btn">Create VM</button>
+            </div>
         </div>
 
         <div id="vm-list-container">

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/docs.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/default.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
 </head>
 <body>
     <div class="docs-container">
@@ -133,7 +134,28 @@
         // Render markdown content
         function renderMarkdown(html) {
             const contentDiv = document.getElementById('docs-content');
+            
+            // Process Mermaid code blocks before inserting HTML
+            html = processMermaidBlocks(html);
+            
             contentDiv.innerHTML = html;
+            
+            // Initialize Mermaid after content is inserted
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({ 
+                    startOnLoad: false,
+                    theme: 'dark',
+                    themeVariables: {
+                        primaryColor: '#77874c',
+                        primaryTextColor: '#ffffff',
+                        primaryBorderColor: '#dafc7b',
+                        lineColor: '#dafc7b',
+                        secondaryColor: '#2a2a2a',
+                        tertiaryColor: '#1e1e1e'
+                    }
+                });
+                mermaid.run();
+            }
             
             // Update active link based on current path
             const activeLink = document.querySelector(`[data-path="${currentPath}"]`);
@@ -155,6 +177,22 @@
             });
         }
 
+        // Process Mermaid code blocks - decode HTML entities in mermaid divs
+        function processMermaidBlocks(html) {
+            // Find all mermaid divs and decode HTML entities
+            const mermaidRegex = /<div class="mermaid">([\s\S]*?)<\/div>/g;
+            
+            return html.replace(mermaidRegex, (match, code) => {
+                // Create temporary element to decode HTML entities
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = code;
+                const cleanCode = (tempDiv.textContent || tempDiv.innerText || code).trim();
+                
+                // Return with clean code
+                return `<div class="mermaid">${cleanCode}</div>`;
+            });
+        }
+
         // Render directory listing
         function renderDirectory(listing, path) {
             const contentDiv = document.getElementById('docs-content');
@@ -166,7 +204,7 @@
             listing.forEach(item => {
                 html += '<li class="docs-directory-item">';
                 html += `<a href="#" class="docs-directory-link" data-path="${item.path}">`;
-                html += `<span class="docs-directory-icon">${item.type === 'directory' ? '📁' : '📄'}</span>`;
+                html += `<span class="docs-directory-icon">${item.type === 'directory' ? '[DIR]' : '[FILE]'}</span>`;
                 html += `<span>${item.name}</span>`;
                 html += '</a>';
                 html += '</li>';

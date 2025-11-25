@@ -52,6 +52,18 @@ class VMManagerApp {
       });
     }
 
+    // Advanced Mode toggle (the joke)
+    const advancedToggle = document.getElementById('advanced-mode-toggle');
+    if (advancedToggle) {
+      advancedToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          document.body.classList.add('advanced-mode');
+        } else {
+          document.body.classList.remove('advanced-mode');
+        }
+      });
+    }
+
     // VM action handler
     document.addEventListener('vm-action', (e) => {
       this.handleVMAction(e.detail.action, e.detail.name, e.detail.running);

@@ -70,12 +70,12 @@
 }
 
 .docs-nav-link.directory::before {
-  content: '📁 ';
+  content: '[DIR] ';
   margin-right: 4px;
 }
 
 .docs-nav-link.file::before {
-  content: '📄 ';
+  content: '[FILE] ';
   margin-right: 4px;
 }
 
@@ -341,6 +341,22 @@
 
 .hljs-number {
   color: #77874c !important;
+}
+
+/* Mermaid Diagrams */
+.mermaid {
+  background-color: #1e1e1e;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 20px;
+  margin: 20px 0;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
 }
 
 /* Responsive */
