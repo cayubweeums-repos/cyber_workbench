@@ -123,6 +123,61 @@ body {
   color: var(--color-bg);
 }
 
+.vm-status.processing {
+  background-color: var(--color-accent);
+  color: var(--color-bg);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* VM Progress */
+.vm-progress {
+  margin: 15px 0;
+  padding: 12px;
+  background-color: #1e1e1e;
+  border-radius: 4px;
+}
+
+.vm-progress-bar {
+  width: 100%;
+  height: 6px;
+  background-color: var(--color-accent-dark);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.vm-progress-fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  transition: width 0.3s ease;
+}
+
+.vm-progress-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vm-progress-message {
+  font-size: 13px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.vm-progress-details {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .vm-specs {
   display: flex;
   gap: 20px;
@@ -213,7 +268,46 @@ body {
 
 .slider-group input[type="range"] {
   flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--color-accent-dark);
+  border-radius: 3px;
+  outline: none;
 }
+
+.slider-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider-group input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.slider-group input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: var(--color-accent-dark);
+  border-radius: 3px;
+}
+
+.slider-group input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--color-accent-dark);
+  border-radius: 3px;
+}
+
+/* Slider fill will be updated via JavaScript */
 
 .slider-group .value {
   min-width: 60px;
@@ -276,6 +370,47 @@ body {
   flex: 1;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.viewer-progress {
+  width: 100%;
+  max-width: 600px;
+  background-color: var(--color-card-bg);
+  border-radius: 8px;
+  padding: 30px;
+  border: 1px solid var(--color-border);
+}
+
+.viewer-progress .progress-container {
+  margin-bottom: 0;
+}
+
+.progress-info {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.progress-stage {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--color-accent);
+  margin-bottom: 10px;
+}
+
+.progress-message {
+  font-size: 14px;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.progress-details {
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
 
 #novnc-canvas {

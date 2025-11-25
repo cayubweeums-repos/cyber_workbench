@@ -5,6 +5,7 @@
 const express = require('express');
 const vmRoutes = require('./vm');
 const operations = require('./operations');
+const { getProgress } = require('./progress');
 
 function setupRoutes(app) {
   const router = express.Router();
@@ -25,17 +26,28 @@ function setupRoutes(app) {
     try {
       const { name } = req.params;
       const { disk_size_gb } = req.body;
-      await operations.createVMDisk(name, disk_size_gb);
-      res.json({ success: true, message: 'Disk created' });
+      
+      // Start async disk creation
+      operations.createVMDisk(name, disk_size_gb).catch(err => {
+        console.error('Disk creation error:', err);
+      });
+      
+      res.json({ success: true, message: 'Disk creation started' });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
   });
   
-  router.post('/download-iso', async (req, res) => {
+  router.post('/vms/:name/download-iso', async (req, res) => {
     try {
-      await operations.downloadWindowsISO();
-      res.json({ success: true, message: 'ISO downloaded' });
+      const { name } = req.params;
+      
+      // Start async download
+      operations.downloadWindowsISO(name).catch(err => {
+        console.error('ISO download error:', err);
+      });
+      
+      res.json({ success: true, message: 'ISO download started' });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
@@ -45,17 +57,22 @@ function setupRoutes(app) {
     try {
       const { name } = req.params;
       
-      // Set up WebSocket or polling for progress updates
-      // For now, use simple response
-      await operations.prepareISOForVM(name, (message) => {
-        // Progress updates could be sent via WebSocket here
-        console.log(`Progress: ${message}`);
+      // Start async preparation
+      operations.prepareISOForVM(name).catch(err => {
+        console.error('ISO preparation error:', err);
       });
       
-      res.json({ success: true, message: 'ISO prepared' });
+      res.json({ success: true, message: 'ISO preparation started' });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
+  });
+  
+  // Progress endpoint
+  router.get('/vms/:name/progress', (req, res) => {
+    const { name } = req.params;
+    const progress = getProgress(name);
+    res.json({ success: true, progress });
   });
   
   app.use('/api', router);

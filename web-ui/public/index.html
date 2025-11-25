@@ -66,8 +66,8 @@
             <div id="create-error" class="error-message" style="display: none;"></div>
 
             <div class="dialog-actions">
-                <button class="btn btn-secondary" id="cancel-create-btn">Cancel</button>
-                <button class="btn" id="confirm-create-btn">Create</button>
+                <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button class="btn" data-action="confirm">Create</button>
             </div>
         </div>
     </div>
@@ -109,8 +109,8 @@
             <div id="edit-error" class="error-message" style="display: none;"></div>
 
             <div class="dialog-actions">
-                <button class="btn btn-secondary" id="cancel-edit-btn">Cancel</button>
-                <button class="btn" id="confirm-edit-btn">Save</button>
+                <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button class="btn" data-action="confirm">Save</button>
             </div>
         </div>
     </div>
@@ -124,13 +124,41 @@
             </div>
         </div>
         <div class="viewer-content">
-            <canvas id="novnc-canvas"></canvas>
+            <!-- Progress Display -->
+            <div id="viewer-progress" class="viewer-progress" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="viewer-progress-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-info">
+                        <div class="progress-stage" id="viewer-progress-stage">Initializing...</div>
+                        <div class="progress-message" id="viewer-progress-message"></div>
+                        <div class="progress-details" id="viewer-progress-details"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- VNC Canvas -->
+            <canvas id="novnc-canvas" style="display: none;"></canvas>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Core -->
+    <script src="js/core/APIClient.js"></script>
+    <!-- Models -->
+    <script src="js/models/VM.js"></script>
+    <!-- Services -->
+    <script src="js/services/VMService.js"></script>
+    <script src="js/services/ServiceRegistry.js"></script>
+    <!-- Components -->
+    <script src="js/components/BaseComponent.js"></script>
+    <script src="js/components/VMCard.js"></script>
+    <script src="js/components/VMList.js"></script>
+    <script src="js/components/VMDialog.js"></script>
+    <!-- Viewer -->
     <script src="js/viewer.js"></script>
+    <!-- Main App -->
+    <script src="js/app.js"></script>
 </body>
 </html>
 

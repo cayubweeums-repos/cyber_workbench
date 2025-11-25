@@ -212,3 +212,6 @@ windows/
 windows-arm/
 vms/
 vapiorc/
+.cursor/
+.cursorignore
+.cursorrules
