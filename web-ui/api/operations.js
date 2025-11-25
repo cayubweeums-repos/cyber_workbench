@@ -134,22 +134,20 @@ try:
                 }
                 print(json.dumps(progress_data), flush=True)
     
+    # Download the file (this will raise an exception on error)
     urllib.request.urlretrieve(ops.windows_iso_url, str(iso_path), progress_hook)
     
     # Final progress
     print(json.dumps({"status": "downloading", "percent": 100, "downloaded": total_size, "total": total_size, "speed": 0, "eta": "0s"}), flush=True)
     
-    if process.returncode == 0:
-        # Verify checksum
-        if ops._verify_iso_checksum(iso_path):
-            print(json.dumps({"status": "complete", "percent": 100}))
-            sys.exit(0)
-        else:
-            print(json.dumps({"status": "error", "message": "Checksum verification failed"}))
-            iso_path.unlink()
-            sys.exit(1)
+    # Verify checksum
+    if ops._verify_iso_checksum(iso_path):
+        print(json.dumps({"status": "complete", "percent": 100}))
+        sys.exit(0)
     else:
-        print(json.dumps({"status": "error", "message": "Download failed"}))
+        print(json.dumps({"status": "error", "message": "Checksum verification failed"}))
+        if iso_path.exists():
+            iso_path.unlink()
         sys.exit(1)
         
 except Exception as e:
@@ -159,6 +157,7 @@ except Exception as e:
 
     const proc = spawn(python, ['-c', script], { cwd: REPO_ROOT });
     let lastProgress = { percent: 0, status: 'starting' };
+    let stderrOutput = '';
 
     proc.stdout.on('data', (data) => {
       const lines = data.toString().split('\n').filter(l => l.trim());
@@ -180,23 +179,50 @@ except Exception as e:
               message: 'Download complete',
               percent: 100
             });
+          } else if (progress.status === 'error') {
+            // Error occurred during download
+            lastProgress = progress;
+            setProgress(vmName, {
+              stage: 'Downloading Windows ISO',
+              message: `Error: ${progress.message || 'Download failed'}`,
+              percent: progress.percent || 0
+            });
           }
         } catch (e) {
-          // Ignore parse errors
+          // Ignore parse errors for non-JSON lines
+          console.warn('Failed to parse progress line:', line);
         }
       }
     });
 
     proc.stderr.on('data', (data) => {
-      // curl progress goes to stderr
+      // Collect stderr output for error reporting
+      stderrOutput += data.toString();
+      const errorText = data.toString();
+      if (errorText.includes('error') || errorText.includes('Error') || errorText.includes('Exception') || errorText.includes('Traceback')) {
+        console.error('Python download error:', errorText);
+      }
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
+      // Check if we got a complete status before checking exit code
+      if (lastProgress.status === 'complete') {
+        resolve(true);
+      } else if (code === 0 && lastProgress.status === 'downloading' && lastProgress.percent >= 99) {
+        // Download finished but didn't get complete status - check if file exists
         resolve(true);
       } else {
         clearProgress(vmName);
-        reject(new Error(`Failed to download ISO`));
+        // Use error message from progress if available, otherwise from stderr
+        let errorMsg = lastProgress.message || `Download failed with exit code ${code}`;
+        if (stderrOutput && !lastProgress.message) {
+          // Extract error from stderr if no message in progress
+          const errorMatch = stderrOutput.match(/(?:Error|Exception|Traceback)[^\n]*/);
+          if (errorMatch) {
+            errorMsg = errorMatch[0].substring(0, 200); // Limit length
+          }
+        }
+        reject(new Error(`Failed to download ISO: ${errorMsg}`));
       }
     });
   });
