@@ -27,13 +27,12 @@ function setupRoutes(app) {
       const { name } = req.params;
       const { disk_size_gb } = req.body;
       
-      // Start async disk creation
-      operations.createVMDisk(name, disk_size_gb).catch(err => {
-        console.error('Disk creation error:', err);
-      });
+      // Wait for disk creation to complete
+      await operations.createVMDisk(name, disk_size_gb);
       
-      res.json({ success: true, message: 'Disk creation started' });
+      res.json({ success: true, message: 'Disk creation completed' });
     } catch (error) {
+      console.error('Disk creation error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -42,13 +41,12 @@ function setupRoutes(app) {
     try {
       const { name } = req.params;
       
-      // Start async download
-      operations.downloadWindowsISO(name).catch(err => {
-        console.error('ISO download error:', err);
-      });
+      // Wait for download to complete
+      await operations.downloadWindowsISO(name);
       
-      res.json({ success: true, message: 'ISO download started' });
+      res.json({ success: true, message: 'ISO download completed' });
     } catch (error) {
+      console.error('ISO download error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -57,13 +55,12 @@ function setupRoutes(app) {
     try {
       const { name } = req.params;
       
-      // Start async preparation
-      operations.prepareISOForVM(name).catch(err => {
-        console.error('ISO preparation error:', err);
-      });
+      // Wait for preparation to complete
+      await operations.prepareISOForVM(name);
       
-      res.json({ success: true, message: 'ISO preparation started' });
+      res.json({ success: true, message: 'ISO preparation completed' });
     } catch (error) {
+      console.error('ISO preparation error:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

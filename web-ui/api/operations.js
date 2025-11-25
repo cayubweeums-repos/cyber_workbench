@@ -91,12 +91,14 @@ try:
     import urllib.request
     import time
     
-    start_time = time.time()
-    last_update = start_time
-    last_downloaded = 0
+    # Use a list to hold mutable state for the progress hook
+    progress_state = {
+        'start_time': time.time(),
+        'last_update': time.time(),
+        'last_downloaded': 0
+    }
     
     def progress_hook(count, block_size, total_size):
-        nonlocal last_update, last_downloaded
         current_time = time.time()
         
         if total_size > 0:
@@ -104,12 +106,12 @@ try:
             percent = min((downloaded * 100) / total_size, 99.9)
             
             # Calculate speed (bytes per second)
-            time_diff = current_time - last_update
+            time_diff = current_time - progress_state['last_update']
             if time_diff >= 1.0:  # Update every second
-                downloaded_diff = downloaded - last_downloaded
+                downloaded_diff = downloaded - progress_state['last_downloaded']
                 speed = downloaded_diff / time_diff if time_diff > 0 else 0
-                last_update = current_time
-                last_downloaded = downloaded
+                progress_state['last_update'] = current_time
+                progress_state['last_downloaded'] = downloaded
                 
                 # Calculate ETA
                 if speed > 0:
@@ -269,6 +271,8 @@ print(json.dumps({"type": "result", "success": result}))
     ];
     let currentStage = 0;
 
+    let completed = false;
+    
     proc.stdout.on('data', (data) => {
       const lines = data.toString().split('\n').filter(l => l.trim());
       for (const line of lines) {
@@ -309,6 +313,9 @@ print(json.dumps({"type": "result", "success": result}))
                 message: 'ISO preparation complete',
                 percent: 100
               });
+              completed = true;
+            } else {
+              completed = true; // Mark as completed even on failure
             }
           }
         } catch (e) {
@@ -339,11 +346,14 @@ print(json.dumps({"type": "result", "success": result}))
     });
 
     proc.on('close', (code) => {
-      if (code === 0) {
+      if (code === 0 && completed) {
+        resolve(true);
+      } else if (code === 0 && !completed) {
+        // Process exited but we didn't get a result - might still be success
         resolve(true);
       } else {
         clearProgress(vmName);
-        reject(new Error(`Failed to prepare ISO`));
+        reject(new Error(`Failed to prepare ISO: process exited with code ${code}`));
       }
     });
   });

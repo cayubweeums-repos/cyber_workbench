@@ -85,15 +85,29 @@ class VMManagerApp {
 
   async startVMCreationWorkflow(name, config) {
     try {
-      // These run asynchronously - progress is tracked separately
+      // Sequential workflow - each step waits for the previous to complete
+      console.log(`Starting VM creation workflow for ${name}`);
+      
+      // Step 1: Create disk
+      console.log(`Creating disk for ${name}...`);
       await this.vmService.createDisk(name, config.disk_size_gb);
+      
+      // Step 2: Download ISO (if needed)
+      console.log(`Downloading ISO for ${name}...`);
       await this.vmService.downloadISO(name);
+      
+      // Step 3: Prepare ISO
+      console.log(`Preparing ISO for ${name}...`);
       await this.vmService.prepareISO(name);
+      
+      console.log(`VM creation workflow completed for ${name}`);
       
       // Refresh when done
       setTimeout(() => this.vmList.load(), 2000);
     } catch (error) {
       console.error('VM creation workflow error:', error);
+      // Show error to user
+      alert(`VM creation failed: ${error.message}`);
     }
   }
 
