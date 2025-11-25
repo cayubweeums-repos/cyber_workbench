@@ -163,15 +163,51 @@
                 updateActiveLink(activeLink);
             }
 
-            // Make internal links work
+            // Make internal links work and fix API links
             contentDiv.querySelectorAll('a').forEach(link => {
-                const href = link.getAttribute('href');
-                if (href && !href.startsWith('http') && !href.startsWith('#')) {
+                let href = link.getAttribute('href');
+                if (href) {
+                    // Skip external links and anchors
+                    if (href.startsWith('http') || href.startsWith('#')) {
+                        return;
+                    }
+                    
+                    // Convert /api/docs links to /docs links
+                    if (href.startsWith('/api/docs')) {
+                        href = href.replace('/api/docs', '/docs');
+                        link.setAttribute('href', href);
+                    }
+                    
+                    // Handle all internal links (relative or absolute /docs)
                     link.addEventListener('click', (e) => {
                         e.preventDefault();
-                        // Extract relative path from href
-                        const relativePath = href.replace(/^\/+/, '');
+                        
+                        let relativePath = '';
+                        
+                        if (href.startsWith('/docs/')) {
+                            // Absolute /docs link
+                            relativePath = href.replace('/docs/', '').replace('/docs', '');
+                        } else if (href.startsWith('/')) {
+                            // Absolute path (convert to relative)
+                            relativePath = href.replace(/^\/+/, '');
+                        } else {
+                            // Relative link (e.g., ./file.md or file.md)
+                            // Resolve relative to current path
+                            const currentDir = currentPath ? currentPath.split('/').slice(0, -1).join('/') : '';
+                            if (href.startsWith('./')) {
+                                relativePath = (currentDir ? currentDir + '/' : '') + href.replace('./', '');
+                            } else {
+                                relativePath = (currentDir ? currentDir + '/' : '') + href;
+                            }
+                        }
+                        
+                        // Clean up path
+                        relativePath = relativePath.replace(/^docs\//, '').replace(/\/+/g, '/');
+                        
                         loadContent(relativePath);
+                        // Update URL without page reload
+                        const newUrl = relativePath ? `/docs/${relativePath}` : '/docs';
+                        window.history.pushState({ path: relativePath }, '', newUrl);
                     });
                 }
             });
@@ -204,7 +240,7 @@
             listing.forEach(item => {
                 html += '<li class="docs-directory-item">';
                 html += `<a href="#" class="docs-directory-link" data-path="${item.path}">`;
-                html += `<span class="docs-directory-icon">${item.type === 'directory' ? '[DIR]' : '[FILE]'}</span>`;
+                html += `<span class="docs-directory-icon ${item.type === 'directory' ? 'icon-folder' : 'icon-file'}"></span>`;
                 html += `<span>${item.name}</span>`;
                 html += '</a>';
                 html += '</li>';
