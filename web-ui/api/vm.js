@@ -4,6 +4,7 @@
 
 const { callPythonInstanceMethod, isVMRunning, REPO_ROOT } = require('./python-bridge');
 const operations = require('./operations');
+const { clearProgress } = require('./progress');
 
 /**
  * List all VMs
@@ -193,6 +194,9 @@ async function startVM(req, res) {
     
     // Start VM
     await operations.startVM(name, config);
+    
+    // Clear any progress since VM is now starting/running
+    clearProgress(name);
     
     res.json({ success: true, message: 'VM started successfully' });
   } catch (error) {

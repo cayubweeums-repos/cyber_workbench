@@ -65,17 +65,24 @@ except Exception as e:
     proc.stdout.on('data', (data) => {
       const text = data.toString();
       stdout += text;
-      console.log(`[Python Bridge ${moduleName}.${functionName}]`, text);
+      // Only log if DEBUG is enabled or if it's an error
+      if (process.env.DEBUG_PYTHON_BRIDGE === '1') {
+        console.log(`[Python Bridge ${moduleName}.${functionName}]`, text);
+      }
     });
 
     proc.stderr.on('data', (data) => {
       const text = data.toString();
       stderr += text;
+      // Always log errors
       console.error(`[Python Bridge ${moduleName}.${functionName} ERROR]`, text);
     });
 
     proc.on('close', (code) => {
-      console.log(`[Python Bridge ${moduleName}.${functionName}] Process exited with code ${code}`);
+      // Only log if DEBUG is enabled or if there's an error
+      if (process.env.DEBUG_PYTHON_BRIDGE === '1' || code !== 0) {
+        console.log(`[Python Bridge ${moduleName}.${functionName}] Process exited with code ${code}`);
+      }
       if (code !== 0) {
         const errorMsg = `Python process exited with code ${code}: ${stderr}`;
         console.error(`[Python Bridge ${moduleName}.${functionName}]`, errorMsg);
@@ -149,17 +156,24 @@ except Exception as e:
     proc.stdout.on('data', (data) => {
       const text = data.toString();
       stdout += text;
-      console.log(`[Python Bridge ${moduleName}.${className}.${methodName}]`, text);
+      // Only log if DEBUG is enabled or if it's an error
+      if (process.env.DEBUG_PYTHON_BRIDGE === '1') {
+        console.log(`[Python Bridge ${moduleName}.${className}.${methodName}]`, text);
+      }
     });
 
     proc.stderr.on('data', (data) => {
       const text = data.toString();
       stderr += text;
+      // Always log errors
       console.error(`[Python Bridge ${moduleName}.${className}.${methodName} ERROR]`, text);
     });
 
     proc.on('close', (code) => {
-      console.log(`[Python Bridge ${moduleName}.${className}.${methodName}] Process exited with code ${code}`);
+      // Only log if DEBUG is enabled or if there's an error
+      if (process.env.DEBUG_PYTHON_BRIDGE === '1' || code !== 0) {
+        console.log(`[Python Bridge ${moduleName}.${className}.${methodName}] Process exited with code ${code}`);
+      }
       if (code !== 0) {
         const errorMsg = `Python process exited with code ${code}: ${stderr}`;
         console.error(`[Python Bridge ${moduleName}.${className}.${methodName}]`, errorMsg);

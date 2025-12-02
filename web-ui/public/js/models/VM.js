@@ -29,7 +29,26 @@ class VM {
   }
 
   isProcessing() {
-    return this.progress !== null && !this.running;
+    // Not processing if VM is running
+    if (this.running) {
+      return false;
+    }
+    
+    // Not processing if no progress
+    if (!this.progress) {
+      return false;
+    }
+    
+    // Not processing if progress indicates completion (Ready, 100%, or success)
+    if (this.progress.stage === 'Ready' || 
+        this.progress.stage === 'Error' ||
+        this.progress.percent === 100 ||
+        (this.progress.message && this.progress.message.toLowerCase().includes('ready'))) {
+      return false;
+    }
+    
+    // Otherwise, we're processing
+    return true;
   }
 }
 
