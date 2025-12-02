@@ -21,26 +21,59 @@ async function createVMDisk(vmName, sizeGb) {
     const python = require('./python-bridge').getPythonExecutable();
     const script = `
 import sys
+import traceback
 sys.path.insert(0, '${REPO_ROOT}')
-from vm_operations import VMOperations
 
-ops = VMOperations('${REPO_ROOT}')
-result = ops.create_vm_disk('${vmName}', ${sizeGb})
-print('SUCCESS' if result else 'FAILED')
+try:
+    from vm_operations import VMOperations
+    
+    ops = VMOperations('${REPO_ROOT}')
+    result = ops.create_vm_disk('${vmName}', ${sizeGb})
+    if result:
+        print('SUCCESS', flush=True)
+        sys.exit(0)
+    else:
+        print('FAILED: create_vm_disk returned False', file=sys.stderr, flush=True)
+        sys.exit(1)
+except Exception as e:
+    print(f'ERROR: {str(e)}', file=sys.stderr, flush=True)
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
 `;
 
     // Use unbuffered Python output for real-time logging
     const proc = spawn(python, ['-u', '-c', script], { 
       cwd: REPO_ROOT,
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      stdio: ['pipe', 'pipe', 'pipe'] // Explicitly set stdio to capture all output
     });
     let output = '';
+    let errors = '';
 
     proc.stdout.on('data', (data) => {
-      output += data.toString();
+      const text = data.toString();
+      output += text;
+      console.log(`[Disk Creation ${vmName}]`, text);
+    });
+
+    proc.stderr.on('data', (data) => {
+      const text = data.toString();
+      errors += text;
+      console.error(`[Disk Creation ${vmName} ERROR]`, text);
+    });
+
+    proc.on('error', (err) => {
+      // Handle spawn errors (e.g., Python executable not found)
+      console.error(`[Disk Creation ${vmName}] Spawn error:`, err);
+      clearProgress(vmName);
+      reject(new Error(`Failed to start disk creation process: ${err.message}`));
     });
 
     proc.on('close', (code) => {
+      console.log(`[Disk Creation ${vmName}] Process exited with code ${code}`);
+      console.log(`[Disk Creation ${vmName}] stdout: "${output.trim()}"`);
+      console.log(`[Disk Creation ${vmName}] stderr: "${errors.trim()}"`);
+      
       if (code === 0 && output.includes('SUCCESS')) {
         setProgress(vmName, {
           stage: 'Creating disk image',
@@ -50,7 +83,18 @@ print('SUCCESS' if result else 'FAILED')
         resolve(true);
       } else {
         clearProgress(vmName);
-        reject(new Error(`Failed to create disk: ${output}`));
+        // Build comprehensive error message
+        let errorMsg = '';
+        if (errors.trim()) {
+          errorMsg = errors.trim();
+        } else if (output.trim()) {
+          errorMsg = output.trim();
+        } else {
+          errorMsg = `Process exited with code ${code} (no output captured)`;
+        }
+        const fullError = `Failed to create disk: ${errorMsg}`;
+        console.error(`[Disk Creation ${vmName}]`, fullError);
+        reject(new Error(fullError));
       }
     });
   });

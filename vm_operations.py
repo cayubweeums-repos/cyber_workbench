@@ -71,17 +71,44 @@ class VMOperations:
         disk_image = vm_dir / "windows.img"
         
         if disk_image.exists():
+            print("Disk already exists, skipping creation", flush=True)
             return True  # Disk already exists
         
         try:
-            subprocess.run(
+            print(f"Creating disk image: {disk_image} ({size_gb}GB)", flush=True)
+            result = subprocess.run(
                 ["qemu-img", "create", "-f", "qcow2", str(disk_image), f"{size_gb}G"],
                 check=True,
-                capture_output=True
+                capture_output=True,
+                text=True
             )
+            print(f"✓ Disk image created successfully", flush=True)
+            if result.stdout:
+                print(f"qemu-img output: {result.stdout}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error creating disk image: {e}")
+            error_msg = f"Error creating disk image: {e}"
+            if e.stdout:
+                error_msg += f"\nstdout: {e.stdout}"
+            if e.stderr:
+                error_msg += f"\nstderr: {e.stderr}"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            return False
+        except FileNotFoundError:
+            error_msg = "qemu-img not found. Please install QEMU (brew install qemu)"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected error creating disk image: {e}"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
             return False
     
     def download_windows_iso(self, progress_callback: Optional[Callable[[int, int], None]] = None) -> bool:
