@@ -1362,30 +1362,49 @@ class VMOperations:
             except:
                 pass
             
-            # Find first existing noVNC directory
+            # Find first existing noVNC directory with vnc.html (required for websockify --web)
             novnc_dir = None
             for path in novnc_paths:
-                if os.path.exists(path):
-                    # Check if it has vnc.html or app/ui.js (noVNC files)
-                    if os.path.exists(os.path.join(path, "vnc.html")) or \
-                       os.path.exists(os.path.join(path, "app", "ui.js")) or \
-                       os.path.exists(os.path.join(path, "core", "rfb.js")):
-                        novnc_dir = path
+                # Convert to absolute path
+                abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
+                if os.path.exists(abs_path):
+                    # Check if it has vnc.html (required for websockify --web to work)
+                    vnc_html = os.path.join(abs_path, "vnc.html")
+                    if os.path.exists(vnc_html):
+                        novnc_dir = abs_path  # Use absolute path
+                        print(f"Found noVNC directory with vnc.html: {novnc_dir}", flush=True)
+                        break
+                    # Fallback: check for app/ui.js or core/rfb.js (but vnc.html is preferred)
+                    elif os.path.exists(os.path.join(abs_path, "app", "ui.js")) or \
+                         os.path.exists(os.path.join(abs_path, "core", "rfb.js")):
+                        print(f"Found noVNC directory (no vnc.html): {abs_path}", flush=True)
+                        print(f"WARNING: vnc.html not found, websockify --web may not work correctly", flush=True)
+                        novnc_dir = abs_path
                         break
             
             if novnc_dir:
                 # Use --web flag to serve noVNC (like vapiorc)
                 # websockify will serve the web interface and handle WebSocket connections
                 # Note: --web flag serves static files, WebSocket upgrade happens automatically
+                # IMPORTANT: websockify serves files AND handles WebSocket on the same port
+                # Use absolute path for --web directory (websockify requires it)
                 cmd = [
                     websockify_path,
-                    "--web", novnc_dir,
+                    "--web", novnc_dir,  # Already absolute path
                     str(websocket_port),
                     f"127.0.0.1:{vnc_port}"
                 ]
                 print(f"Using websockify --web with noVNC directory: {novnc_dir}", flush=True)
                 print(f"Web interface available at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
                 print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
+                print(f"Full command: {' '.join(cmd)}", flush=True)
+                
+                # Verify noVNC files exist
+                vnc_html = os.path.join(novnc_dir, "vnc.html")
+                if os.path.exists(vnc_html):
+                    print(f"✓ Verified: {vnc_html} exists", flush=True)
+                else:
+                    print(f"✗ WARNING: {vnc_html} not found! websockify --web will fail!", flush=True)
             else:
                 # Fallback: don't use --web (websockify will still work, but no web UI)
                 cmd = [
@@ -1397,32 +1416,31 @@ class VMOperations:
                 print("noVNC web interface will not be available. Install noVNC or use bundled version.", flush=True)
             
             # Try to start websockify
-            # Capture stderr to help debug 405 errors
+            # Log the command for debugging
+            print(f"Starting websockify with command: {' '.join(cmd)}", flush=True)
+            
+            # Start websockify - use DEVNULL to avoid blocking, but log startup
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
             )
             
             # Wait a moment to check if it started successfully
             import time
-            time.sleep(1.0)  # Give it more time to start
+            time.sleep(1.5)  # Give it more time to start
             
             # Check if process is still running
             if process.poll() is None:
                 # Process is still running, good
-                print(f"Websockify started on port {websocket_port} for VNC {vnc_port}", flush=True)
+                print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
                 print(f"Access noVNC at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
+                print(f"If you see 405 errors, check that websockify --web flag is working correctly", flush=True)
                 return websocket_port
             else:
                 # Process exited, check for errors
-                try:
-                    stdout, stderr = process.communicate(timeout=1)
-                    error_msg = stderr or stdout or 'unknown error'
-                    print(f"Websockify failed to start. Error: {error_msg[:500]}", flush=True)
-                except:
-                    print(f"Websockify process exited with code {process.returncode}", flush=True)
+                print(f"ERROR: Websockify process exited with code {process.returncode}", flush=True)
+                print(f"HINT: Check websockify installation and --web flag support", flush=True)
                 return None
                 
         except Exception as e:

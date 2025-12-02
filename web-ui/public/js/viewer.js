@@ -137,8 +137,15 @@ class VMViewer {
     // websockify with --web serves static files and handles WebSocket upgrade
     // The URL should point to vnc.html, and noVNC will connect via WebSocket to the same port
     // Note: host and port params tell noVNC where to connect (same port for WebSocket)
+    // Try websockify --web first (like vapiorc)
+    // websockify with --web serves noVNC static files AND handles WebSocket on same port
+    // If you see 405 error, it means websockify isn't serving static files correctly
     const websockifyUrl = `http://127.0.0.1:${websocketPort}/vnc.html?host=127.0.0.1&port=${websocketPort}&autoconnect=true&resize=scale&reconnect=true`;
     console.log('Loading noVNC via websockify web interface:', websockifyUrl);
+    console.log('WebSocket will connect to: ws://127.0.0.1:' + websocketPort + '/');
+    
+    // If 405 error occurs, it means websockify --web flag isn't working
+    // Check server logs for websockify startup messages
     
     iframe.style.display = 'block';
     iframe.src = websockifyUrl;

@@ -37,6 +37,14 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// Serve noVNC files from repo root (for websockify --web flag)
+// This allows websockify to serve noVNC, but we can also serve it from Express as fallback
+const novncPath = path.join(__dirname, '..', 'novnc');
+if (require('fs').existsSync(novncPath)) {
+  app.use('/novnc-static', express.static(novncPath));
+  console.log(`noVNC files available at /novnc-static (fallback if websockify --web fails)`);
+}
+
 // Serve docs.html for /docs route
 app.get('/docs', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'docs.html'));
