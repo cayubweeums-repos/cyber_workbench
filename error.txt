@@ -1,4 +1,42 @@
-rocess exited with code 0
+g macOS dependencies...
+Checking for node...
+Checking for qemu...
+Checking for wimlib...
+Checking for cdrtools...
+Checking for websockify...
+All macOS dependencies installed
+Setting up Python virtual environment...
+Virtual environment ready
+Setting up directory structure...
+Copied autounattend.xml to vms/shared/
+Directory structure ready
+Setting up Node.js dependencies...
+
+up to date, audited 75 packages in 515ms
+
+14 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+Node.js setup complete
+Starting VM Manager Web UI...
+VM Manager Web UI running on http://localhost:3000
+Open your browser to http://localhost:3000 to access the interface
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
@@ -17,29 +55,62 @@ rocess exited with code 0
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:24:42.235641"}}
 
 [Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
-Disk creation error: Error: Failed to create disk: 
-    at ChildProcess.<anonymous> (/Users/caleb/code/cyderes/cyber_workbench/web-ui/api/operations.js:53:16)
+[Disk Creation test_full_novnc ERROR] ERROR: unexpected indent (vm_operations.py, line 214)
+
+[Disk Creation test_full_novnc ERROR] Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+    from vm_operations import VMOperations
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 214
+
+[Disk Creation test_full_novnc ERROR]     print(f"Using temp directory: {vm_temp_dir}", flush=True)
+IndentationError: unexpected indent
+
+[Disk Creation test_full_novnc] Process exited with code 1
+[Disk Creation test_full_novnc] stdout: ""
+[Disk Creation test_full_novnc] stderr: "ERROR: unexpected indent (vm_operations.py, line 214)
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+    from vm_operations import VMOperations
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 214
+    print(f"Using temp directory: {vm_temp_dir}", flush=True)
+IndentationError: unexpected indent"
+[Disk Creation test_full_novnc] Failed to create disk: ERROR: unexpected indent (vm_operations.py, line 214)
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+    from vm_operations import VMOperations
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 214
+    print(f"Using temp directory: {vm_temp_dir}", flush=True)
+IndentationError: unexpected indent
+Disk creation error: Error: Failed to create disk: ERROR: unexpected indent (vm_operations.py, line 214)
+Traceback (most recent call last):
+  File "<string>", line 7, in <module>
+    from vm_operations import VMOperations
+  File "/Users/caleb/code/cyderes/cyber_workbench/vm_operations.py", line 214
+    print(f"Using temp directory: {vm_temp_dir}", flush=True)
+IndentationError: unexpected indent
+    at ChildProcess.<anonymous> (/Users/caleb/code/cyderes/cyber_workbench/web-ui/api/operations.js:97:16)
     at ChildProcess.emit (node:events:508:28)
     at maybeClose (node:internal/child_process:1085:16)
-    at Socket.<anonymous> (node:internal/child_process:456:11)
-    at Socket.emit (node:events:508:28)
-    at Pipe.<anonymous> (node:net:346:12)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5)
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:24:42.235641"}}
 
 [Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:24:42.235641"}}
 
 [Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:24:42.235641"}}
+
+[Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
+^Cmake: *** [start] Interrupt: 2
