@@ -1,15 +1,4 @@
-s": true, "data": []}
-
-[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
-
-[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
-
-[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
-
-[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+rocess exited with code 0
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": []}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
@@ -28,7 +17,7 @@ s": true, "data": []}
 [Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
 
 [Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
-[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-11-24T19:23:08.511615"}}
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
 
 [Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
 Disk creation error: Error: Failed to create disk: 
@@ -38,3 +27,19 @@ Disk creation error: Error: Failed to create disk:
     at Socket.<anonymous> (node:internal/child_process:456:11)
     at Socket.emit (node:events:508:28)
     at Pipe.<anonymous> (node:net:346:12)
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+
+[Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
+
+[Python Bridge vm_manager.VMManager.get_vm_config] Process exited with code 0
+[Python Bridge vm_manager.VMManager.list_vms] {"success": true, "data": ["test_full_novnc"]}
+
+[Python Bridge vm_manager.VMManager.list_vms] Process exited with code 0
+[Python Bridge vm_manager.VMManager.get_vm_config] {"success": true, "data": {"name": "test_full_novnc", "cpu_cores": 8, "ram_gb": 8, "disk_size_gb": 64, "network": "user", "created": "2025-12-02T09:18:37.013136"}}
