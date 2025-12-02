@@ -1,4 +1,4 @@
-.PHONY: start stop check-deps setup-venv setup-dirs setup-nodejs detect-os
+.PHONY: start stop check-deps setup-venv setup-dirs setup-nodejs setup-novnc detect-os
 
 # Get the absolute path of the repo root
 REPO_ROOT := $(shell pwd)
@@ -187,7 +187,35 @@ setup-dirs:
 		cp $(REPO_ROOT)/autounattend.xml $(REPO_ROOT)/vms/shared/autounattend.xml; \
 		echo "Copied autounattend.xml to vms/shared/"; \
 	fi
+	@$(MAKE) setup-novnc
 	@echo "Directory structure ready"
+
+setup-novnc:
+	@echo "Setting up noVNC library..."
+	@NOVNC_DIR="$(WEB_UI_DIR)/public/js/novnc"; \
+	NOVNC_CORE_DIR="$$NOVNC_DIR/core"; \
+	if [ ! -f "$$NOVNC_CORE_DIR/rfb.js" ]; then \
+		echo "Downloading noVNC v1.4.0..."; \
+		if ! command -v curl >/dev/null 2>&1; then \
+			echo "ERROR: curl is required to download noVNC. Please install curl."; \
+			exit 1; \
+		fi; \
+		if ! command -v unzip >/dev/null 2>&1; then \
+			echo "ERROR: unzip is required to extract noVNC. Please install unzip."; \
+			exit 1; \
+		fi; \
+		TMP_DIR=$$(mktemp -d) && \
+		cd $$TMP_DIR && \
+		curl -L -s "https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.zip" -o novnc.zip && \
+		unzip -q novnc.zip && \
+		mkdir -p "$$NOVNC_CORE_DIR" && \
+		cp -r noVNC-1.4.0/core/* "$$NOVNC_CORE_DIR/" && \
+		cd - && \
+		rm -rf $$TMP_DIR && \
+		echo "noVNC library installed successfully"; \
+	else \
+		echo "noVNC library already installed"; \
+	fi
 
 setup-nodejs:
 	@echo "Setting up Node.js dependencies..."

@@ -128,18 +128,19 @@ class VMViewer {
     // Set canvas size
     this.resizeCanvas();
 
-    // Wait for RFB to be available (in case script is still loading)
+    // Wait for RFB to be available (ES module may still be loading)
+    // dockur/windows uses ES modules, so RFB is loaded asynchronously
     let attempts = 0;
     const maxAttempts = 50; // Wait up to 5 seconds (50 * 100ms)
     
-    while (typeof RFB === 'undefined' && attempts < maxAttempts) {
+    while (typeof window.RFB === 'undefined' && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
 
     // Check if RFB is available
-    if (typeof RFB === 'undefined') {
-      console.error('RFB is not defined after waiting. noVNC library may not have loaded.');
+    if (typeof window.RFB === 'undefined') {
+      console.error('RFB is not defined after waiting. noVNC ES module may not have loaded.');
       ctx.fillStyle = '#f00';
       ctx.font = '16px Arial';
       ctx.textAlign = 'center';
@@ -149,8 +150,8 @@ class VMViewer {
     }
 
     try {
-      // Create RFB connection
-      this.rfb = new RFB({
+      // Create RFB connection (using window.RFB from ES module, like dockur/windows)
+      this.rfb = new window.RFB({
         target: canvas,
         encrypt: false,
         wsProtocols: ['binary'],

@@ -149,32 +149,16 @@
         </div>
     </div>
 
-    <!-- Load noVNC library - using standard noVNC from jsDelivr -->
-    <script src="https://cdn.jsdelivr.net/gh/novnc/noVNC@v1.4.0/core/rfb/rfb.min.js"
-            onerror="console.error('Failed to load noVNC from primary CDN')"
-            onload="console.log('noVNC script loaded, RFB available:', typeof RFB !== 'undefined')"></script>
-    <script>
-      // Fallback loader if primary fails
-      window.addEventListener('load', function() {
-        if (typeof RFB === 'undefined') {
-          console.warn('Primary noVNC CDN failed, trying alternative...');
-          const script = document.createElement('script');
-          script.src = 'https://unpkg.com/novnc-core@7.0.0/dist/rfb.min.js';
-          script.onload = function() {
-            if (typeof RFB !== 'undefined') {
-              console.log('noVNC loaded from fallback CDN');
-            } else {
-              console.error('RFB still not available after fallback');
-            }
-          };
-          script.onerror = function() {
-            console.error('All noVNC CDN sources failed');
-          };
-          document.head.appendChild(script);
-        } else {
-          console.log('noVNC library loaded successfully');
-        }
-      });
+    <!-- Load noVNC library - using ES module like dockur/windows -->
+    <!-- dockur/windows uses pre-built ES module files from noVNC release -->
+    <!-- We use core/rfb.js which is an ES module, no wrapper needed -->
+    <script type="module">
+      // Import RFB from the ES module (like dockur/windows does)
+      // Use absolute path for ES module imports
+      import RFB from '/js/novnc/core/rfb.js';
+      // Expose globally for our viewer code (backward compatibility)
+      window.RFB = RFB;
+      console.log('noVNC RFB loaded from ES module (dockur/windows approach)');
     </script>
     <!-- Core -->
     <script src="js/core/APIClient.js"></script>

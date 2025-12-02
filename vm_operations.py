@@ -1114,9 +1114,11 @@ class VMOperations:
             print(f"Disk image not found for {vm_name}")
             return False
         
-        if not modified_iso.exists():
-            print(f"Modified ISO not found for {vm_name}")
-            return False
+        # ISO is optional - only needed for initial installation
+        # After Windows is installed, we boot from disk only
+        attach_iso = modified_iso.exists()
+        if not attach_iso:
+            print(f"Modified ISO not found for {vm_name}, booting from disk only (assuming Windows is installed)")
         
         # Find OVMF firmware - paths differ by OS
         system = platform.system()
@@ -1189,7 +1191,7 @@ class VMOperations:
             qga_socket = qga_socket_dir / "qga.sock"
             qmp_socket = qmp_socket_dir / "qmp.sock"
             
-            # Build QEMU command
+            # Build QEMU command - matches setup guide exactly
             cmd = [
                 qemu_binary,
                 "-accel", accel,
@@ -1200,9 +1202,19 @@ class VMOperations:
                 "-drive", f"file={disk_image},format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on",
                 "-device", "virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2",
                 "-device", "scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=1",
-                "-drive", f"file={modified_iso},format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom",
-                "-device", "qemu-xhci,id=xhci,p2=7,p3=7",
-                "-device", "usb-storage,drive=cdrom0,removable=on,bootindex=2",
+            ]
+            
+            # Only attach ISO if it exists (for initial installation)
+            # After Windows is installed, boot from disk only
+            if attach_iso:
+                cmd.extend([
+                    "-drive", f"file={modified_iso},format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom",
+                    "-device", "qemu-xhci,id=xhci,p2=7,p3=7",
+                    "-device", "usb-storage,drive=cdrom0,removable=on,bootindex=2",
+                ])
+            
+            # Continue with remaining devices - matches setup guide
+            cmd.extend([
                 "-device", "usb-tablet",
                 "-device", "usb-kbd",
                 "-netdev", "user,id=hostnet0",
@@ -1221,7 +1233,7 @@ class VMOperations:
                 "-device", "virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
                 # QEMU Machine Protocol (QMP) for VM management
                 "-qmp", f"unix:{qmp_socket},server=on,wait=off"
-            ]
+            ])
             
             # On Linux, if KVM is not available, QEMU will automatically fall back to TCG
             # We can try to detect this, but it's better to let QEMU handle it
@@ -1327,12 +1339,38 @@ class VMOperations:
                 return websocket_port
             
             # Start websockify - use the found path
-            # Note: --web flag is optional, we'll use noVNC from CDN in HTML
+            # Use --web flag to serve noVNC files directly (like dockur/windows does)
+            # This eliminates the need for CDN or local bundling
             cmd = [
                 websockify_path,
+                "--web", "/usr/share/novnc",  # Try standard location first
                 str(websocket_port),
                 f"127.0.0.1:{vnc_port}"
             ]
+            
+            # If standard location doesn't work, try without --web and use our bundled version
+            # Check if websockify web directory exists
+            import websockify as ws_module
+            import os
+            ws_dir = os.path.dirname(ws_module.__file__)
+            web_dir = os.path.join(ws_dir, 'web')
+            if os.path.exists(web_dir):
+                # Use websockify's built-in web directory
+                cmd = [
+                    websockify_path,
+                    "--web", web_dir,
+                    str(websocket_port),
+                    f"127.0.0.1:{vnc_port}"
+                ]
+                print(f"Using websockify web directory: {web_dir}", flush=True)
+            else:
+                # Fallback: don't use --web, serve noVNC from our own server
+                cmd = [
+                    websockify_path,
+                    str(websocket_port),
+                    f"127.0.0.1:{vnc_port}"
+                ]
+                print("Websockify web directory not found, using standalone mode", flush=True)
             
             # Try to start websockify
             process = subprocess.Popen(
