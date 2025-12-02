@@ -1338,39 +1338,59 @@ class VMOperations:
                 print(f"Websockify already running on port {websocket_port}")
                 return websocket_port
             
-            # Start websockify - use the found path
-            # Use --web flag to serve noVNC files directly (like dockur/windows does)
-            # This eliminates the need for CDN or local bundling
-            cmd = [
-                websockify_path,
-                "--web", "/usr/share/novnc",  # Try standard location first
-                str(websocket_port),
-                f"127.0.0.1:{vnc_port}"
+            # Start websockify - use --web flag to serve noVNC files (like vapiorc)
+            # Check for noVNC files in multiple locations
+            import os
+            from pathlib import Path
+            
+            # Try to find noVNC files (vapiorc approach - websockify serves noVNC via --web)
+            # Look for full noVNC release with vnc.html (for websockify --web)
+            repo_root = Path(__file__).parent.parent
+            novnc_paths = [
+                "/usr/share/novnc",  # Standard system location
+                str(repo_root / "novnc"),  # Our downloaded full release (from Makefile)
+                os.path.join(os.path.dirname(__file__), "..", "web-ui", "public", "js", "novnc"),  # Fallback: bundled core
             ]
             
-            # If standard location doesn't work, try without --web and use our bundled version
-            # Check if websockify web directory exists
-            import websockify as ws_module
-            import os
-            ws_dir = os.path.dirname(ws_module.__file__)
-            web_dir = os.path.join(ws_dir, 'web')
-            if os.path.exists(web_dir):
-                # Use websockify's built-in web directory
+            # Also check websockify's built-in web directory
+            try:
+                import websockify as ws_module
+                ws_dir = os.path.dirname(ws_module.__file__)
+                web_dir = os.path.join(ws_dir, 'web')
+                if os.path.exists(web_dir):
+                    novnc_paths.insert(1, web_dir)  # Prefer websockify's built-in
+            except:
+                pass
+            
+            # Find first existing noVNC directory
+            novnc_dir = None
+            for path in novnc_paths:
+                if os.path.exists(path):
+                    # Check if it has vnc.html or app/ui.js (noVNC files)
+                    if os.path.exists(os.path.join(path, "vnc.html")) or \
+                       os.path.exists(os.path.join(path, "app", "ui.js")) or \
+                       os.path.exists(os.path.join(path, "core", "rfb.js")):
+                        novnc_dir = path
+                        break
+            
+            if novnc_dir:
+                # Use --web flag to serve noVNC (like vapiorc)
                 cmd = [
                     websockify_path,
-                    "--web", web_dir,
+                    "--web", novnc_dir,
                     str(websocket_port),
                     f"127.0.0.1:{vnc_port}"
                 ]
-                print(f"Using websockify web directory: {web_dir}", flush=True)
+                print(f"Using websockify --web with noVNC directory: {novnc_dir}", flush=True)
             else:
-                # Fallback: don't use --web, serve noVNC from our own server
+                # Fallback: don't use --web (websockify will still work, but no web UI)
                 cmd = [
                     websockify_path,
                     str(websocket_port),
                     f"127.0.0.1:{vnc_port}"
                 ]
-                print("Websockify web directory not found, using standalone mode", flush=True)
+                print("WARNING: noVNC directory not found, websockify running without --web flag", flush=True)
+                print("noVNC web interface will not be available. Install noVNC or use bundled version.", flush=True)
             
             # Try to start websockify
             process = subprocess.Popen(

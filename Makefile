@@ -192,10 +192,9 @@ setup-dirs:
 
 setup-novnc:
 	@echo "Setting up noVNC library..."
-	@NOVNC_DIR="$(WEB_UI_DIR)/public/js/novnc"; \
-	NOVNC_CORE_DIR="$$NOVNC_DIR/core"; \
-	if [ ! -f "$$NOVNC_CORE_DIR/rfb.js" ]; then \
-		echo "Downloading noVNC v1.4.0..."; \
+	@NOVNC_DIR="$(REPO_ROOT)/novnc"; \
+	if [ ! -f "$$NOVNC_DIR/vnc.html" ]; then \
+		echo "Downloading noVNC v1.4.0 (full release for websockify --web)..."; \
 		if ! command -v curl >/dev/null 2>&1; then \
 			echo "ERROR: curl is required to download noVNC. Please install curl."; \
 			exit 1; \
@@ -208,11 +207,12 @@ setup-novnc:
 		cd $$TMP_DIR && \
 		curl -L -s "https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.zip" -o novnc.zip && \
 		unzip -q novnc.zip && \
-		mkdir -p "$$NOVNC_CORE_DIR" && \
-		cp -r noVNC-1.4.0/core/* "$$NOVNC_CORE_DIR/" && \
+		mkdir -p "$$NOVNC_DIR" && \
+		cp -r noVNC-1.4.0/* "$$NOVNC_DIR/" && \
 		cd - && \
 		rm -rf $$TMP_DIR && \
-		echo "noVNC library installed successfully"; \
+		echo "noVNC library installed successfully at $$NOVNC_DIR"; \
+		echo "  (This will be used by websockify --web flag, like vapiorc)"; \
 	else \
 		echo "noVNC library already installed"; \
 	fi

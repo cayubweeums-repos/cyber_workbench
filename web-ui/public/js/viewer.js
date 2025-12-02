@@ -4,7 +4,6 @@
  */
 class VMViewer {
   constructor() {
-    this.rfb = null;
     this.progressInterval = null;
     this.currentVMName = null;
     this.vmService = services.get('vm');
@@ -14,20 +13,25 @@ class VMViewer {
     this.currentVMName = vmName;
     const viewerContainer = document.getElementById('viewer-container');
     const progressDiv = document.getElementById('viewer-progress');
-    const canvas = document.getElementById('novnc-canvas');
+    const iframe = document.getElementById('novnc-viewer');
     
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
     if (websocketPort) {
-      // VM is running, show VNC
+      // VM is running, show VNC iframe (like vapiorc)
       progressDiv.style.display = 'none';
-      canvas.style.display = 'block';
+      if (iframe) {
+        iframe.style.display = 'block';
+      }
       this.initNoVNC(websocketPort);
       this.stopProgressPolling();
     } else {
       // VM not running, show progress
-      canvas.style.display = 'none';
+      if (iframe) {
+        iframe.style.display = 'none';
+        iframe.src = ''; // Clear iframe src
+      }
       progressDiv.style.display = 'block';
       this.startProgressPolling(vmName);
     }
@@ -72,7 +76,10 @@ class VMViewer {
                 if (port) {
                   this.stopProgressPolling();
                   document.getElementById('viewer-progress').style.display = 'none';
-                  document.getElementById('novnc-canvas').style.display = 'block';
+                  const iframe = document.getElementById('novnc-viewer');
+                  if (iframe) {
+                    iframe.style.display = 'block';
+                  }
                   this.initNoVNC(port);
                 }
               } else {
@@ -89,7 +96,10 @@ class VMViewer {
               if (port) {
                 this.stopProgressPolling();
                 document.getElementById('viewer-progress').style.display = 'none';
-                document.getElementById('novnc-canvas').style.display = 'block';
+                const iframe = document.getElementById('novnc-viewer');
+                if (iframe) {
+                  iframe.style.display = 'block';
+                }
                 this.initNoVNC(port);
               }
             }
@@ -112,166 +122,58 @@ class VMViewer {
   }
 
   async initNoVNC(websocketPort) {
-    const canvas = document.getElementById('novnc-canvas');
+    // Use iframe approach like vapiorc - websockify serves noVNC with --web flag
+    const iframe = document.getElementById('novnc-viewer');
     
-    // Disconnect existing connection
-    if (this.rfb) {
-      this.rfb.disconnect();
-      this.rfb = null;
+    if (!iframe) {
+      console.error('noVNC viewer iframe not found');
+      return;
     }
 
-    // Clear canvas
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Set canvas size
-    this.resizeCanvas();
-
-    // Wait for RFB to be available (ES module loads asynchronously)
-    // Use event-based waiting for better reliability
-    if (typeof window.RFB === 'undefined') {
-      console.log('Waiting for noVNC library to load...');
-      
-      // Wait for the novnc-loaded event or check window.RFB periodically
-      const rfbReady = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Timeout waiting for noVNC library to load (10 seconds)'));
-        }, 10000); // 10 second timeout
-        
-        const onLoaded = (e) => {
-          clearTimeout(timeout);
-          window.removeEventListener('novnc-loaded', onLoaded);
-          window.removeEventListener('novnc-error', onError);
-          resolve(e.detail?.RFB || window.RFB);
-        };
-        
-        const onError = (e) => {
-          clearTimeout(timeout);
-          window.removeEventListener('novnc-loaded', onLoaded);
-          window.removeEventListener('novnc-error', onError);
-          reject(new Error(e.detail?.error?.message || e.detail?.error || 'Failed to load noVNC'));
-        };
-        
-        window.addEventListener('novnc-loaded', onLoaded, { once: true });
-        window.addEventListener('novnc-error', onError, { once: true });
-        
-        // Also poll in case event was already fired before we set up listeners
-        const pollInterval = setInterval(() => {
-          if (typeof window.RFB !== 'undefined') {
-            clearInterval(pollInterval);
-            clearTimeout(timeout);
-            window.removeEventListener('novnc-loaded', onLoaded);
-            window.removeEventListener('novnc-error', onError);
-            resolve(window.RFB);
-          }
-        }, 100);
-        
-        // Cleanup polling on timeout
-        setTimeout(() => clearInterval(pollInterval), 10000);
-      });
-      
-      try {
-        await rfbReady;
-        console.log('noVNC library loaded successfully');
-      } catch (error) {
-        console.error('RFB is not defined after waiting. noVNC ES module may not have loaded:', error);
-        ctx.fillStyle = '#f00';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Error: noVNC library not loaded. Please refresh the page.', canvas.width / 2, canvas.height / 2);
-        ctx.fillText(`Error: ${error.message}`, canvas.width / 2, canvas.height / 2 + 20);
-        console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('rfb') || k.toLowerCase().includes('vnc')));
-        console.error('Check browser console for ES module import errors');
-        return;
+    // Point iframe to websockify web interface (like vapiorc does)
+    // websockify with --web flag serves noVNC at http://localhost:PORT/
+    const websockifyUrl = `http://127.0.0.1:${websocketPort}/`;
+    console.log('Loading noVNC via websockify web interface:', websockifyUrl);
+    
+    iframe.style.display = 'block';
+    iframe.src = websockifyUrl;
+    
+    // Handle iframe load errors
+    iframe.onerror = (error) => {
+      console.error('Failed to load noVNC iframe:', error);
+      iframe.style.display = 'none';
+      // Show error message
+      const viewerContent = document.querySelector('.viewer-content');
+      if (viewerContent) {
+        viewerContent.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #f00; text-align: center;">
+            <div>
+              <p>Error: Failed to load noVNC viewer</p>
+              <p style="font-size: 12px; color: #888;">Websockify may not be running on port ${websocketPort}</p>
+            </div>
+          </div>
+        `;
       }
-    }
-
-    try {
-      // Create RFB connection (using window.RFB from ES module, like dockur/windows)
-      this.rfb = new window.RFB({
-        target: canvas,
-        encrypt: false,
-        wsProtocols: ['binary'],
-        credentials: { password: '' }
-      });
-
-      this.rfb.scaleViewport = true;
-      this.rfb.resizeSession = true;
-      this.rfb.background = '#000000';
-
-      // Event handlers
-      this.rfb.addEventListener('connect', () => {
-        console.log('Connected to VNC server');
-        canvas.style.backgroundColor = '#000000';
-      });
-
-      this.rfb.addEventListener('disconnect', (e) => {
-        const reason = e.detail.clean ? 'clean' : 'unclean';
-        console.log('Disconnected from VNC server:', reason);
-        
-        // Show disconnect message on canvas
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = '#fff';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText(`Disconnected: ${reason}`, canvas.width / 2, canvas.height / 2);
-      });
-
-      this.rfb.addEventListener('credentialsrequired', () => {
-        console.log('Credentials required (if any)');
-      });
-
-      // Connect to websockify proxy
-      const wsUrl = `ws://127.0.0.1:${websocketPort}`;
-      console.log('Connecting to VNC via websocket:', wsUrl);
-      this.rfb.connect(wsUrl);
-
-    } catch (error) {
-      console.error('Error initializing VNC:', error);
-      const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#f00';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`Error: ${error.message}`, canvas.width / 2, canvas.height / 2);
-    }
-  }
-
-  resizeCanvas() {
-    const canvas = document.getElementById('novnc-canvas');
-    const container = canvas.parentElement;
+    };
     
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+    // Log successful load
+    iframe.onload = () => {
+      console.log('noVNC iframe loaded successfully');
+    };
   }
 
   close() {
-    document.getElementById('viewer-container').classList.remove('active');
-    if (this.rfb) {
-      this.rfb.disconnect();
-      this.rfb = null;
+    // Clear iframe src when closing (like vapiorc)
+    const iframe = document.getElementById('novnc-viewer');
+    if (iframe) {
+      iframe.src = '';
+      iframe.style.display = 'none';
     }
     this.stopProgressPolling();
+    document.getElementById('viewer-container').classList.remove('active');
     this.currentVMName = null;
   }
 }
-
-// Handle window resize
-window.addEventListener('resize', () => {
-  const canvas = document.getElementById('novnc-canvas');
-  if (canvas) {
-    const container = canvas.parentElement;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-  }
-  if (window.vmViewerInstance && window.vmViewerInstance.rfb) {
-    window.vmViewerInstance.rfb.scaleViewport = true;
-  }
-});
 
 // Export for global access (backward compatibility)
 window.VMViewer = VMViewer;
