@@ -22,18 +22,34 @@ if (sudoPassword.initializeFromEnv()) {
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Setup API routes
+// Setup API routes BEFORE static files to ensure API routes work
 setupRoutes(app);
+
+// Serve static files (must come after API routes but before catch-all)
+// This ensures JS/CSS/images are served correctly with proper MIME types
+app.use(express.static(path.join(__dirname, 'public'), {
+  // Set proper MIME types for ES modules and other files
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    }
+  }
+}));
 
 // Serve docs.html for /docs route
 app.get('/docs', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'docs.html'));
 });
 
-// Serve index.html for all non-API routes
+// Serve index.html for all non-API, non-static routes (SPA fallback)
+// This must be LAST so it doesn't catch static file requests
 app.get('*', (req, res) => {
+  // Don't serve index.html for file requests with extensions (they should 404 if not found)
+  // This prevents the catch-all from intercepting static file requests
+  if (req.path.match(/\.[a-zA-Z0-9]+$/)) {
+    return res.status(404).send('File not found');
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
