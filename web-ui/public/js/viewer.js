@@ -131,8 +131,13 @@ class VMViewer {
     }
 
     // Point iframe to websockify web interface (like vapiorc does)
-    // websockify with --web flag serves noVNC at http://localhost:PORT/
-    const websockifyUrl = `http://127.0.0.1:${websocketPort}/`;
+    // websockify with --web flag serves noVNC
+    // Access via vnc.html with connection parameters
+    // The WebSocket connection will be made to the same port (websockify handles upgrade)
+    // websockify with --web serves static files and handles WebSocket upgrade
+    // The URL should point to vnc.html, and noVNC will connect via WebSocket to the same port
+    // Note: host and port params tell noVNC where to connect (same port for WebSocket)
+    const websockifyUrl = `http://127.0.0.1:${websocketPort}/vnc.html?host=127.0.0.1&port=${websocketPort}&autoconnect=true&resize=scale&reconnect=true`;
     console.log('Loading noVNC via websockify web interface:', websockifyUrl);
     
     iframe.style.display = 'block';
@@ -150,6 +155,7 @@ class VMViewer {
             <div>
               <p>Error: Failed to load noVNC viewer</p>
               <p style="font-size: 12px; color: #888;">Websockify may not be running on port ${websocketPort}</p>
+              <p style="font-size: 12px; color: #888;">Check that websockify started with --web flag</p>
             </div>
           </div>
         `;

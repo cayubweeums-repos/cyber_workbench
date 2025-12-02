@@ -1375,6 +1375,8 @@ class VMOperations:
             
             if novnc_dir:
                 # Use --web flag to serve noVNC (like vapiorc)
+                # websockify will serve the web interface and handle WebSocket connections
+                # Note: --web flag serves static files, WebSocket upgrade happens automatically
                 cmd = [
                     websockify_path,
                     "--web", novnc_dir,
@@ -1382,6 +1384,8 @@ class VMOperations:
                     f"127.0.0.1:{vnc_port}"
                 ]
                 print(f"Using websockify --web with noVNC directory: {novnc_dir}", flush=True)
+                print(f"Web interface available at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
+                print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
             else:
                 # Fallback: don't use --web (websockify will still work, but no web UI)
                 cmd = [
@@ -1393,21 +1397,32 @@ class VMOperations:
                 print("noVNC web interface will not be available. Install noVNC or use bundled version.", flush=True)
             
             # Try to start websockify
+            # Capture stderr to help debug 405 errors
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
             
             # Wait a moment to check if it started successfully
             import time
-            time.sleep(0.5)
+            time.sleep(1.0)  # Give it more time to start
             
+            # Check if process is still running
             if process.poll() is None:
-                print(f"Websockify started on port {websocket_port} for VNC {vnc_port}")
+                # Process is still running, good
+                print(f"Websockify started on port {websocket_port} for VNC {vnc_port}", flush=True)
+                print(f"Access noVNC at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
                 return websocket_port
             else:
-                print(f"Failed to start websockify")
+                # Process exited, check for errors
+                try:
+                    stdout, stderr = process.communicate(timeout=1)
+                    error_msg = stderr or stdout or 'unknown error'
+                    print(f"Websockify failed to start. Error: {error_msg[:500]}", flush=True)
+                except:
+                    print(f"Websockify process exited with code {process.returncode}", flush=True)
                 return None
                 
         except Exception as e:
