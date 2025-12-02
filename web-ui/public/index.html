@@ -149,7 +149,35 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js"></script>
+    <!-- Load noVNC library - try multiple CDN sources for reliability -->
+    <script>
+      // Check if RFB is available after script loads
+      window.addEventListener('load', function() {
+        if (typeof RFB === 'undefined') {
+          console.error('RFB is not defined after page load. noVNC library may not have loaded correctly.');
+          console.error('Trying alternative noVNC CDN...');
+          // Try alternative CDN
+          const script = document.createElement('script');
+          script.src = 'https://unpkg.com/@novnc/core@7.0.0/lib/rfb.min.js';
+          script.onload = function() {
+            if (typeof RFB !== 'undefined') {
+              console.log('noVNC library loaded from alternative CDN');
+            } else {
+              console.error('RFB still not available after loading from alternative CDN');
+            }
+          };
+          script.onerror = function() {
+            console.error('Failed to load noVNC from alternative CDN');
+          };
+          document.head.appendChild(script);
+        } else {
+          console.log('noVNC library loaded successfully, RFB is available');
+        }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@novnc/core@7.0.0/lib/rfb.min.js" 
+            onerror="console.error('Failed to load noVNC library from primary CDN')"
+            onload="console.log('noVNC script loaded, RFB available:', typeof RFB !== 'undefined')"></script>
     <!-- Core -->
     <script src="js/core/APIClient.js"></script>
     <!-- Models -->

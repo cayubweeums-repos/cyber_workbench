@@ -111,7 +111,7 @@ class VMViewer {
     }
   }
 
-  initNoVNC(websocketPort) {
+  async initNoVNC(websocketPort) {
     const canvas = document.getElementById('novnc-canvas');
     
     // Disconnect existing connection
@@ -127,6 +127,26 @@ class VMViewer {
 
     // Set canvas size
     this.resizeCanvas();
+
+    // Wait for RFB to be available (in case script is still loading)
+    let attempts = 0;
+    const maxAttempts = 50; // Wait up to 5 seconds (50 * 100ms)
+    
+    while (typeof RFB === 'undefined' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    // Check if RFB is available
+    if (typeof RFB === 'undefined') {
+      console.error('RFB is not defined after waiting. noVNC library may not have loaded.');
+      ctx.fillStyle = '#f00';
+      ctx.font = '16px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Error: noVNC library not loaded. Please refresh the page.', canvas.width / 2, canvas.height / 2);
+      console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('rfb') || k.toLowerCase().includes('vnc')));
+      return;
+    }
 
     try {
       // Create RFB connection

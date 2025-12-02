@@ -522,27 +522,53 @@ except Exception as e:
     // Use unbuffered Python output for real-time logging
     const proc = spawn(python, ['-u', '-c', script], { 
       cwd: REPO_ROOT,
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      stdio: ['pipe', 'pipe', 'pipe']
     });
-    let output = '';
+    let stdout = '';
+    let stderr = '';
 
     proc.stdout.on('data', (data) => {
       const text = data.toString();
-      output += text;
+      stdout += text;
       console.log(`[VM Start ${vmName}]`, text);
     });
 
     proc.stderr.on('data', (data) => {
       const text = data.toString();
-      output += text;
+      stderr += text;
       console.error(`[VM Start ${vmName} ERROR]`, text);
     });
 
+    proc.on('error', (err) => {
+      console.error(`[VM Start ${vmName}] Spawn error:`, err);
+      reject(new Error(`Failed to start VM process: ${err.message}`));
+    });
+
     proc.on('close', (code) => {
-      if (code === 0 && output.includes('SUCCESS')) {
+      console.log(`[VM Start ${vmName}] Process exited with code ${code}`);
+      if (stdout.trim()) {
+        console.log(`[VM Start ${vmName}] stdout: "${stdout.trim()}"`);
+      }
+      if (stderr.trim()) {
+        console.error(`[VM Start ${vmName}] stderr: "${stderr.trim()}"`);
+      }
+      
+      if (code === 0 && stdout.includes('SUCCESS')) {
         resolve(true);
+      } else if (code === 0 && stdout.includes('FAILED')) {
+        const errorMsg = stderr.trim() || stdout.trim() || 'VM start returned FAILED';
+        console.error(`[VM Start ${vmName}] Failed: ${errorMsg}`);
+        reject(new Error(`Failed to start VM: ${errorMsg}`));
+      } else if (code !== 0) {
+        const errorMsg = stderr.trim() || stdout.trim() || `Process exited with code ${code}`;
+        console.error(`[VM Start ${vmName}] Error: ${errorMsg}`);
+        reject(new Error(`Failed to start VM: ${errorMsg}`));
       } else {
-        reject(new Error(`Failed to start VM: ${output}`));
+        // Code 0 but no SUCCESS - might be an issue
+        const errorMsg = stderr.trim() || stdout.trim() || 'Unknown error';
+        console.error(`[VM Start ${vmName}] Unknown error: ${errorMsg}`);
+        reject(new Error(`Failed to start VM: ${errorMsg}`));
       }
     });
   });
