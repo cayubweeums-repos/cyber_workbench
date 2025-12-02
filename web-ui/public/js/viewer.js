@@ -130,25 +130,18 @@ class VMViewer {
       return;
     }
 
-    // Point iframe to websockify web interface (like vapiorc does)
-    // websockify with --web flag serves noVNC
-    // Access via vnc.html with connection parameters
-    // The WebSocket connection will be made to the same port (websockify handles upgrade)
-    // websockify with --web serves static files and handles WebSocket upgrade
-    // The URL should point to vnc.html, and noVNC will connect via WebSocket to the same port
-    // Note: host and port params tell noVNC where to connect (same port for WebSocket)
-    // Try websockify --web first (like vapiorc)
-    // websockify with --web serves noVNC static files AND handles WebSocket on same port
-    // If you see 405 error, it means websockify isn't serving static files correctly
-    const websockifyUrl = `http://127.0.0.1:${websocketPort}/vnc.html?host=127.0.0.1&port=${websocketPort}&autoconnect=true&resize=scale&reconnect=true`;
-    console.log('Loading noVNC via websockify web interface:', websockifyUrl);
+    // Serve noVNC from Express (like vapiorc uses nginx)
+    // websockify only handles WebSocket connections, not static files
+    // This avoids 405 errors from websockify --web flag
+    // Serve noVNC from Express (like vapiorc uses nginx)
+    // websockify only handles WebSocket connections, not static files
+    // noVNC is served from /novnc/ and connects to websockify via WebSocket
+    const novncUrl = `/novnc/vnc.html?host=127.0.0.1&port=${websocketPort}&autoconnect=true&resize=scale&reconnect=true`;
+    console.log('Loading noVNC from Express server:', novncUrl);
     console.log('WebSocket will connect to: ws://127.0.0.1:' + websocketPort + '/');
     
-    // If 405 error occurs, it means websockify --web flag isn't working
-    // Check server logs for websockify startup messages
-    
     iframe.style.display = 'block';
-    iframe.src = websockifyUrl;
+    iframe.src = novncUrl;
     
     // Handle iframe load errors
     iframe.onerror = (error) => {

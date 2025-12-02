@@ -37,12 +37,12 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// Serve noVNC files from repo root (for websockify --web flag)
-// This allows websockify to serve noVNC, but we can also serve it from Express as fallback
+// Serve noVNC files from repo root (like vapiorc uses nginx)
+// We serve noVNC from Express, websockify only handles WebSocket connections
 const novncPath = path.join(__dirname, '..', 'novnc');
 if (require('fs').existsSync(novncPath)) {
-  app.use('/novnc-static', express.static(novncPath));
-  console.log(`noVNC files available at /novnc-static (fallback if websockify --web fails)`);
+  app.use('/novnc', express.static(novncPath));
+  console.log(`noVNC files available at /novnc/ (served from Express, like vapiorc uses nginx)`);
 }
 
 // Serve docs.html for /docs route

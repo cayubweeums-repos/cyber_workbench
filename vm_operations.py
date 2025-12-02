@@ -1382,29 +1382,18 @@ class VMOperations:
                         novnc_dir = abs_path
                         break
             
-            if novnc_dir:
-                # Use --web flag to serve noVNC (like vapiorc)
-                # websockify will serve the web interface and handle WebSocket connections
-                # Note: --web flag serves static files, WebSocket upgrade happens automatically
-                # IMPORTANT: websockify serves files AND handles WebSocket on the same port
-                # Use absolute path for --web directory (websockify requires it)
-                cmd = [
-                    websockify_path,
-                    "--web", novnc_dir,  # Already absolute path
-                    str(websocket_port),
-                    f"127.0.0.1:{vnc_port}"
-                ]
-                print(f"Using websockify --web with noVNC directory: {novnc_dir}", flush=True)
-                print(f"Web interface available at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
-                print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
-                print(f"Full command: {' '.join(cmd)}", flush=True)
-                
-                # Verify noVNC files exist
-                vnc_html = os.path.join(novnc_dir, "vnc.html")
-                if os.path.exists(vnc_html):
-                    print(f"✓ Verified: {vnc_html} exists", flush=True)
-                else:
-                    print(f"✗ WARNING: {vnc_html} not found! websockify --web will fail!", flush=True)
+            # Don't use --web flag - it's causing 405 errors
+            # Instead, serve noVNC from Express server and use websockify only for WebSocket
+            # This matches how vapiorc works (nginx serves noVNC, websockify handles WebSocket)
+            cmd = [
+                websockify_path,
+                str(websocket_port),
+                f"127.0.0.1:{vnc_port}"
+            ]
+            print(f"Starting websockify (WebSocket only, no --web flag)", flush=True)
+            print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
+            print(f"noVNC will be served from Express server at /novnc/", flush=True)
+            print(f"Full command: {' '.join(cmd)}", flush=True)
             else:
                 # Fallback: don't use --web (websockify will still work, but no web UI)
                 cmd = [
