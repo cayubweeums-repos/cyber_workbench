@@ -73,7 +73,9 @@ class VMService {
   }
 
   async prepareISO(name, sudoPassword = null) {
-    const response = await this.api.post(`/vms/${name}/prepare-iso`, { sudo_password: sudoPassword });
+    // Sudo password is now provided at server startup, but allow override if needed
+    const body = sudoPassword ? { sudo_password: sudoPassword } : {};
+    const response = await this.api.post(`/vms/${name}/prepare-iso`, body);
     return response;
   }
 

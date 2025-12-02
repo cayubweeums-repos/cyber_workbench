@@ -211,9 +211,9 @@ class VMOperations:
         vm_temp_dir.mkdir(parents=True, exist_ok=True)
         iso_extracted.mkdir(exist_ok=True)
         drivers_temp.mkdir(exist_ok=True)
-            print(f"Using temp directory: {vm_temp_dir}", flush=True)
-            print(f"ISO extracted will be at: {iso_extracted}", flush=True)
-            print(f"Drivers temp will be at: {drivers_temp}", flush=True)
+        print(f"Using temp directory: {vm_temp_dir}", flush=True)
+        print(f"ISO extracted will be at: {iso_extracted}", flush=True)
+        print(f"Drivers temp will be at: {drivers_temp}", flush=True)
         
         try:
             # Step 1: Extract ISO

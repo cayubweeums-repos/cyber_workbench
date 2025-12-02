@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { REPO_ROOT } = require('./python-bridge');
 const { setProgress, clearProgress } = require('./progress');
+const sudoPassword = require('./sudo-password');
 
 /**
  * Create VM disk image
@@ -308,7 +309,7 @@ function formatBytes(bytes) {
 /**
  * Prepare ISO for VM (with progress tracking)
  */
-async function prepareISOForVM(vmName, sudoPassword = null) {
+async function prepareISOForVM(vmName, providedSudoPassword = null) {
   // Set initial progress to show we're starting ISO preparation
   setProgress(vmName, {
     stage: 'Preparing ISO',
@@ -319,8 +320,23 @@ async function prepareISOForVM(vmName, sudoPassword = null) {
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
     
+    // Use provided password, or fall back to stored password, or use environment variable
+    const passwordToUse = providedSudoPassword || sudoPassword.getSudoPassword() || process.env.SUDO_PASSWORD;
+    
+    if (!passwordToUse) {
+      const errorMsg = 'Sudo password not available. Please restart the server with sudo password set.';
+      console.error(`[ISO Prep ${vmName}]`, errorMsg);
+      setProgress(vmName, {
+        stage: 'Error',
+        message: errorMsg,
+        percent: 0
+      });
+      reject(new Error(errorMsg));
+      return;
+    }
+    
     // Encode sudo password for safe passing
-    const sudoPasswordB64 = sudoPassword ? Buffer.from(sudoPassword).toString('base64') : '';
+    const sudoPasswordB64 = Buffer.from(passwordToUse).toString('base64');
     
     const script = `
 import sys
@@ -333,7 +349,7 @@ def progress(msg):
     print(json.dumps({"type": "progress", "message": msg}), flush=True)
 
 ops = VMOperations('${REPO_ROOT}')
-${sudoPasswordB64 ? `ops.set_sudo_password(base64.b64decode('${sudoPasswordB64}').decode('utf-8'))` : ''}
+ops.set_sudo_password(base64.b64decode('${sudoPasswordB64}').decode('utf-8'))
 result = ops.prepare_iso_for_vm('${vmName}', progress)
 print(json.dumps({"type": "result", "success": result}))
 `;

@@ -108,16 +108,9 @@ class VMManagerApp {
       console.log(`Downloading ISO for ${name}...`);
       await this.vmService.downloadISO(name);
       
-      // Step 3: Prepare ISO - prompt for sudo password
+      // Step 3: Prepare ISO (sudo password provided at server startup)
       console.log(`Preparing ISO for ${name}...`);
-      const sudoPassword = prompt('ISO preparation requires sudo access. Please enter your password:');
-      if (sudoPassword === null) {
-        // User cancelled
-        alert('ISO preparation cancelled. VM cannot be created without ISO preparation.');
-        return;
-      }
-      
-      await this.vmService.prepareISO(name, sudoPassword);
+      await this.vmService.prepareISO(name);
       
       console.log(`VM creation workflow completed for ${name}`);
       

@@ -19,7 +19,7 @@ detect-os:
 
 start: check-deps setup-venv setup-dirs setup-nodejs
 	@echo "Starting VM Manager Web UI..."
-	@cd $(WEB_UI_DIR) && $(NODE) server.js
+	@cd $(WEB_UI_DIR) && ./start-server.sh
 
 stop:
 	@echo "Stopping VM Manager..."

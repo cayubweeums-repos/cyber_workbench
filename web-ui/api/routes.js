@@ -56,6 +56,7 @@ function setupRoutes(app) {
   router.post('/vms/:name/prepare-iso', async (req, res) => {
     try {
       const { name } = req.params;
+      // Sudo password is now provided at startup, but allow override via request body
       const { sudo_password } = req.body;
       
       // Wait for preparation to complete

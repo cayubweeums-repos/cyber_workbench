@@ -6,9 +6,18 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const { setupRoutes } = require('./api/routes');
+const sudoPassword = require('./api/sudo-password');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize sudo password from environment variable
+if (sudoPassword.initializeFromEnv()) {
+  console.log('Sudo password initialized from environment variable');
+} else {
+  console.log('WARNING: SUDO_PASSWORD environment variable not set. Some operations may fail.');
+  console.log('Set SUDO_PASSWORD environment variable or operations requiring sudo will prompt.');
+}
 
 // Middleware
 app.use(cors());
