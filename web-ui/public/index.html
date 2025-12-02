@@ -155,10 +155,39 @@
     <script type="module">
       // Import RFB from the ES module (like dockur/windows does)
       // Use absolute path for ES module imports
-      import RFB from '/js/novnc/core/rfb.js';
-      // Expose globally for our viewer code (backward compatibility)
-      window.RFB = RFB;
-      console.log('noVNC RFB loaded from ES module (dockur/windows approach)');
+      (async () => {
+        try {
+          console.log('[noVNC] Starting to load from /js/novnc/core/rfb.js...');
+          const module = await import('/js/novnc/core/rfb.js');
+          console.log('[noVNC] Module loaded successfully:', module);
+          console.log('[noVNC] Module keys:', Object.keys(module));
+          
+          // Expose globally for our viewer code (backward compatibility)
+          // RFB is exported as default, so use module.default
+          window.RFB = module.default;
+          
+          if (!window.RFB) {
+            throw new Error('RFB class not found in module. Module keys: ' + Object.keys(module).join(', '));
+          }
+          
+          console.log('[noVNC] RFB class loaded:', window.RFB);
+          console.log('[noVNC] RFB is a:', typeof window.RFB, window.RFB.name || 'unnamed');
+          
+          // Dispatch event to notify that RFB is ready
+          window.dispatchEvent(new CustomEvent('novnc-loaded', { detail: { RFB: window.RFB } }));
+          console.log('[noVNC] novnc-loaded event dispatched');
+        } catch (error) {
+          console.error('[noVNC] Failed to load ES module:', error);
+          console.error('[noVNC] Error name:', error.name);
+          console.error('[noVNC] Error message:', error.message);
+          console.error('[noVNC] Error stack:', error.stack);
+          if (error.message && error.message.includes('Failed to fetch')) {
+            console.error('[noVNC] This might be a path issue. Check that /js/novnc/core/rfb.js is accessible.');
+            console.error('[noVNC] Try accessing the file directly in your browser to verify it exists.');
+          }
+          window.dispatchEvent(new CustomEvent('novnc-error', { detail: { error: error.message || String(error) } }));
+        }
+      })();
     </script>
     <!-- Core -->
     <script src="js/core/APIClient.js"></script>

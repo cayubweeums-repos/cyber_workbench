@@ -128,25 +128,63 @@ class VMViewer {
     // Set canvas size
     this.resizeCanvas();
 
-    // Wait for RFB to be available (ES module may still be loading)
-    // dockur/windows uses ES modules, so RFB is loaded asynchronously
-    let attempts = 0;
-    const maxAttempts = 50; // Wait up to 5 seconds (50 * 100ms)
-    
-    while (typeof window.RFB === 'undefined' && attempts < maxAttempts) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      attempts++;
-    }
-
-    // Check if RFB is available
+    // Wait for RFB to be available (ES module loads asynchronously)
+    // Use event-based waiting for better reliability
     if (typeof window.RFB === 'undefined') {
-      console.error('RFB is not defined after waiting. noVNC ES module may not have loaded.');
-      ctx.fillStyle = '#f00';
-      ctx.font = '16px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Error: noVNC library not loaded. Please refresh the page.', canvas.width / 2, canvas.height / 2);
-      console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('rfb') || k.toLowerCase().includes('vnc')));
-      return;
+      console.log('Waiting for noVNC library to load...');
+      
+      // Wait for the novnc-loaded event or check window.RFB periodically
+      const rfbReady = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Timeout waiting for noVNC library to load (10 seconds)'));
+        }, 10000); // 10 second timeout
+        
+        const onLoaded = (e) => {
+          clearTimeout(timeout);
+          window.removeEventListener('novnc-loaded', onLoaded);
+          window.removeEventListener('novnc-error', onError);
+          resolve(e.detail?.RFB || window.RFB);
+        };
+        
+        const onError = (e) => {
+          clearTimeout(timeout);
+          window.removeEventListener('novnc-loaded', onLoaded);
+          window.removeEventListener('novnc-error', onError);
+          reject(new Error(e.detail?.error?.message || e.detail?.error || 'Failed to load noVNC'));
+        };
+        
+        window.addEventListener('novnc-loaded', onLoaded, { once: true });
+        window.addEventListener('novnc-error', onError, { once: true });
+        
+        // Also poll in case event was already fired before we set up listeners
+        const pollInterval = setInterval(() => {
+          if (typeof window.RFB !== 'undefined') {
+            clearInterval(pollInterval);
+            clearTimeout(timeout);
+            window.removeEventListener('novnc-loaded', onLoaded);
+            window.removeEventListener('novnc-error', onError);
+            resolve(window.RFB);
+          }
+        }, 100);
+        
+        // Cleanup polling on timeout
+        setTimeout(() => clearInterval(pollInterval), 10000);
+      });
+      
+      try {
+        await rfbReady;
+        console.log('noVNC library loaded successfully');
+      } catch (error) {
+        console.error('RFB is not defined after waiting. noVNC ES module may not have loaded:', error);
+        ctx.fillStyle = '#f00';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Error: noVNC library not loaded. Please refresh the page.', canvas.width / 2, canvas.height / 2);
+        ctx.fillText(`Error: ${error.message}`, canvas.width / 2, canvas.height / 2 + 20);
+        console.error('Available globals:', Object.keys(window).filter(k => k.toLowerCase().includes('rfb') || k.toLowerCase().includes('vnc')));
+        console.error('Check browser console for ES module import errors');
+        return;
+      }
     }
 
     try {
