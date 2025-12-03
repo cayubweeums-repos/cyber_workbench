@@ -4,7 +4,6 @@
  */
 
 const { isVMRunning } = require('./python-bridge');
-const nginxManager = require('./nginx-manager');
 const fs = require('fs');
 const path = require('path');
 
@@ -75,12 +74,7 @@ async function registerVM(vmName, websockifyPort) {
   };
   saveRunningVMs(runningVMs);
   
-  // Ensure nginx is running
-  try {
-    await nginxManager.startNginx();
-  } catch (error) {
-    console.warn(`Failed to start nginx when registering VM ${vmName}:`, error.message);
-  }
+  // No nginx needed - Express handles everything!
 }
 
 /**
@@ -90,29 +84,8 @@ async function unregisterVM(vmName) {
   const runningVMs = await getRunningVMs();
   delete runningVMs[vmName];
   saveRunningVMs(runningVMs);
-
-  // Update nginx config to remove this VM's route
-  try {
-    // Pass this module to avoid circular dependency
-    await nginxManager.updateNginxConfig(module.exports);
-    if (await nginxManager.isNginxRunning()) {
-      await nginxManager.reloadNginx();
-    }
-  } catch (error) {
-    console.warn(`Failed to update nginx config after VM ${vmName} stopped: ${error.message}`);
-  }
-
-  // Check if any VMs are still running
-  const remainingVMs = await getRunningVMs();
-  if (Object.keys(remainingVMs).length === 0) {
-    // No VMs running, stop nginx
-    try {
-      await nginxManager.stopNginx();
-      console.log('All VMs stopped, nginx stopped');
-    } catch (error) {
-      console.warn('Failed to stop nginx:', error.message);
-    }
-  }
+  
+  // No nginx to manage - Express handles everything automatically!
 }
 
 /**

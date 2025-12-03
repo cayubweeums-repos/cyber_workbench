@@ -5,11 +5,14 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 const { setupRoutes } = require('./api/routes');
 const sudoPassword = require('./api/sudo-password');
+const vmTracker = require('./api/vm-tracker');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const REPO_ROOT = path.join(__dirname, '..');
 
 // Initialize sudo password from environment variable
 if (sudoPassword.initializeFromEnv()) {
@@ -37,8 +40,34 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// noVNC files are now served by nginx on port 8006 (not Express)
-// nginx handles both static file serving and WebSocket proxying to websockify
+// Serve noVNC files from the novnc directory (simpler than nginx!)
+const novncDir = path.join(REPO_ROOT, 'novnc');
+app.use('/novnc', express.static(novncDir));
+
+// Proxy WebSocket connections to websockify ports
+// Format: /websockify/:vmName -> proxies to the VM's websockify port
+app.use('/websockify/:vmName', async (req, res, next) => {
+  const { vmName } = req.params;
+  try {
+    const websockifyPort = await vmTracker.getWebsockifyPort(vmName);
+    if (!websockifyPort) {
+      return res.status(404).json({ error: `VM ${vmName} not found or websockify not running` });
+    }
+
+    // Create proxy middleware for this specific VM
+    const proxy = createProxyMiddleware({
+      target: `http://127.0.0.1:${websockifyPort}`,
+      ws: true, // Enable WebSocket proxying
+      changeOrigin: true,
+      logLevel: 'warn'
+    });
+
+    proxy(req, res, next);
+  } catch (error) {
+    console.error(`Error proxying to websockify for ${vmName}:`, error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Serve docs.html for /docs route
 app.get('/docs', (req, res) => {
@@ -56,18 +85,21 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start server
-app.listen(PORT, '0.0.0.0', async () => {
+// Start server with WebSocket support
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`VM Manager Web UI running on http://localhost:${PORT}`);
   console.log(`Open your browser to http://localhost:${PORT} to access the interface`);
+  console.log(`noVNC served directly from Express (no nginx required!)`);
   
   // Clean up any stale VM tracker entries on startup
   try {
-    const vmTracker = require('./api/vm-tracker');
     await vmTracker.cleanupStaleVMs();
     console.log('VM tracker cleaned up');
   } catch (error) {
     console.warn('Failed to cleanup VM tracker:', error.message);
   }
 });
+
+// http-proxy-middleware automatically handles WebSocket upgrades when ws: true is set
+// No additional upgrade handler needed!
 

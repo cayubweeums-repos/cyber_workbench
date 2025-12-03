@@ -123,9 +123,9 @@ class VMViewer {
     }
   }
 
-  async initNoVNC(nginxPort) {
-    // Use iframe approach - nginx serves noVNC on port 8006
-    // nginx proxies WebSocket connections to websockify on port 6080
+  async initNoVNC(expressPort) {
+    // Use iframe approach - Express serves noVNC directly
+    // Express proxies WebSocket connections to websockify
     const iframe = document.getElementById('novnc-viewer');
     
     if (!iframe) {
@@ -133,17 +133,16 @@ class VMViewer {
       return;
     }
 
-    // nginx serves noVNC at http://localhost:8006/vnc.html
-    // noVNC will connect to ws://localhost:8006/websockify/{vmName} which nginx proxies to the VM's websockify port
-    // We need to get the websockify port for this VM and construct the WebSocket path
+    // Express serves noVNC at http://localhost:3000/novnc/vnc.html
+    // noVNC will connect to ws://localhost:3000/websockify/{vmName} which Express proxies to the VM's websockify port
     const vmName = this.currentVMName;
     const websockifyPath = `/websockify/${vmName}`;
     
     // noVNC URL with path parameter for WebSocket connection
     // The path parameter tells noVNC to connect to the VM-specific websockify route
-    const novncUrl = `http://localhost:${nginxPort}/vnc.html?host=localhost&port=${nginxPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true`;
-    console.log('Loading noVNC from nginx:', novncUrl);
-    console.log('WebSocket will connect to nginx path', websockifyPath, 'which proxies to VM-specific websockify port');
+    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true`;
+    console.log('Loading noVNC from Express:', novncUrl);
+    console.log('WebSocket will connect to Express path', websockifyPath, 'which proxies to VM-specific websockify port');
     
     iframe.style.display = 'block';
     iframe.src = novncUrl;
@@ -159,8 +158,8 @@ class VMViewer {
           <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #f00; text-align: center;">
             <div>
               <p>Error: Failed to load noVNC viewer</p>
-              <p style="font-size: 12px; color: #888;">nginx may not be running on port ${nginxPort}</p>
-              <p style="font-size: 12px; color: #888;">Check that nginx is started and serving noVNC files</p>
+              <p style="font-size: 12px; color: #888;">Express server may not be running on port ${expressPort}</p>
+              <p style="font-size: 12px; color: #888;">Check that the server is started and noVNC files are available</p>
             </div>
           </div>
         `;

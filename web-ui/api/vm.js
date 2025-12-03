@@ -240,11 +240,11 @@ async function getViewerPort(req, res) {
     // Start websockify (which also ensures nginx is running and configured)
     await operations.startWebsockify(name);
     
-    // Return nginx port (8006) and websockify path
-    // nginx serves noVNC and proxies to websockify via /websockify/{vmname}
+    // Return Express port (3000) and websockify path
+    // Express serves noVNC and proxies to websockify via /websockify/{vmname}
     res.json({ 
       success: true, 
-      port: 8006,
+      port: 3000,
       websockifyPath: `/websockify/${name}`
     });
   } catch (error) {

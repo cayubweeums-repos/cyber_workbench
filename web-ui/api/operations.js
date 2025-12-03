@@ -7,7 +7,6 @@ const path = require('path');
 const { REPO_ROOT } = require('./python-bridge');
 const { setProgress, clearProgress } = require('./progress');
 const sudoPassword = require('./sudo-password');
-const nginxManager = require('./nginx-manager');
 const vmTracker = require('./vm-tracker');
 
 /**
@@ -671,14 +670,7 @@ except Exception as e:
 
 async function startWebsockify(vmName, vncPort = 5900) {
   return new Promise(async (resolve, reject) => {
-    // Ensure nginx is running first
-    try {
-      await nginxManager.startNginx();
-    } catch (error) {
-      console.warn(`[Websockify ${vmName}] Failed to start nginx: ${error.message}`);
-      // Continue anyway - nginx might already be running
-    }
-
+    // No nginx needed - Express handles everything!
     const python = require('./python-bridge').getPythonExecutable();
     const script = `
 import sys
@@ -716,16 +708,9 @@ else:
           console.warn(`[Websockify ${vmName}] Failed to register VM: ${error.message}`);
         }
         
-        // Update nginx config to include route for this VM
-        try {
-          await nginxManager.updateNginxConfigForVM(vmName, websockifyPort, vmTracker);
-        } catch (error) {
-          console.warn(`[Websockify ${vmName}] Failed to update nginx config: ${error.message}`);
-        }
-        
-        // Return nginx port (8006) - nginx serves noVNC and proxies to websockify
-        // The viewer will use a URL parameter to specify which VM/websockify to connect to
-        resolve(8006);
+        // Return Express port (3000) - Express serves noVNC and proxies to websockify
+        // The viewer will connect to /novnc/vnc.html and use /websockify/{vmName} for WebSocket
+        resolve(3000);
       } else {
         reject(new Error(`Failed to start websockify: ${output}`));
       }
