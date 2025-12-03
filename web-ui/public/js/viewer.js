@@ -136,19 +136,46 @@ class VMViewer {
     // Express serves noVNC at http://localhost:3000/novnc/vnc.html
     // noVNC will connect to ws://localhost:3000/websockify/{vmName} which Express proxies to the VM's websockify port
     const vmName = this.currentVMName;
-    const websockifyPath = `/websockify/${vmName}`;
     
-    // noVNC URL format - match vapiorc's approach
-    // vapiorc uses: http://localhost:8006/ (root path)
-    // We use: http://localhost:3000/novnc/vnc.html with WebSocket path parameter
-    // The path parameter is critical - it tells noVNC where to connect the WebSocket
-    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true&reconnect_delay=1000`;
+    // Path parameter should be "websockify/{vmName}" without leading slash and without encoding
+    // This matches the working URL format: path=websockify/test_full_novnc
+    const websockifyPath = `websockify/${vmName}`;
+    
+    // noVNC URL format - correct path parameter format
+    // path should be: websockify/{vmName} (no leading slash, not encoded)
+    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true&resize=scale&reconnect=true&reconnect_delay=1000`;
     console.log('Loading noVNC from Express:', novncUrl);
     console.log('WebSocket path:', websockifyPath);
-    console.log('Full WebSocket URL will be: ws://localhost:' + expressPort + websockifyPath);
+    console.log('Full WebSocket URL will be: ws://localhost:' + expressPort + '/' + websockifyPath);
     
+    // Ensure iframe fills available space and auto-resizes
     iframe.style.display = 'block';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = 'none';
+    iframe.style.background = '#000';
+    
+    // Set iframe src
     iframe.src = novncUrl;
+    
+    // Auto-resize iframe when window resizes
+    const resizeIframe = () => {
+      const viewerContent = document.querySelector('.viewer-content');
+      if (viewerContent && iframe) {
+        const rect = viewerContent.getBoundingClientRect();
+        iframe.style.width = `${rect.width}px`;
+        iframe.style.height = `${rect.height}px`;
+      }
+    };
+    
+    // Initial resize
+    resizeIframe();
+    
+    // Resize on window resize
+    window.addEventListener('resize', resizeIframe);
+    
+    // Store resize handler so we can remove it later
+    this._resizeHandler = resizeIframe;
     
     // Handle iframe load errors
     iframe.onerror = (error) => {
@@ -201,6 +228,13 @@ class VMViewer {
       iframe.src = '';
       iframe.style.display = 'none';
     }
+    
+    // Remove resize handler
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
+    
     this.stopProgressPolling();
     document.getElementById('viewer-container').classList.remove('active');
     this.currentVMName = null;
