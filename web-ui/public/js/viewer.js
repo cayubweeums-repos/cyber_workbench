@@ -19,14 +19,21 @@ class VMViewer {
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
-    // viewerPort is now the nginx port (8006), not websockify port
+    // viewerPort is now the Express port (3000), not websockify port
     if (viewerPort) {
-      // VM is running, show VNC iframe (nginx serves noVNC)
+      // VM is running, show VNC iframe (Express serves noVNC)
       progressDiv.style.display = 'none';
       if (iframe) {
+        // Ensure iframe is visible and properly sized
         iframe.style.display = 'block';
+        iframe.style.visibility = 'visible';
+        iframe.style.opacity = '1';
+        iframe.style.zIndex = '1';
       }
-      this.initNoVNC(viewerPort);
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        this.initNoVNC(viewerPort);
+      }, 100);
       this.stopProgressPolling();
     } else {
       // VM not running, show progress
@@ -150,13 +157,30 @@ class VMViewer {
     
     // Ensure iframe fills available space and auto-resizes
     iframe.style.display = 'block';
+    iframe.style.visibility = 'visible';
+    iframe.style.opacity = '1';
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';
     iframe.style.background = '#000';
+    iframe.style.position = 'absolute';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    iframe.style.zIndex = '1';
     
-    // Set iframe src
-    iframe.src = novncUrl;
+    // Clear any previous src to force reload
+    iframe.src = '';
+    
+    // Small delay to ensure iframe is ready, then set src
+    setTimeout(() => {
+      console.log('Setting iframe src to:', novncUrl);
+      iframe.src = novncUrl;
+      
+      // Verify iframe is visible
+      const rect = iframe.getBoundingClientRect();
+      console.log('Iframe dimensions:', rect.width, 'x', rect.height);
+      console.log('Iframe visible:', rect.width > 0 && rect.height > 0);
+    }, 50);
     
     // Auto-resize iframe when window resizes
     const resizeIframe = () => {
@@ -200,24 +224,54 @@ class VMViewer {
     // Log successful load and check for WebSocket connection
     iframe.onload = () => {
       console.log('noVNC iframe loaded successfully');
+      console.log('Iframe src:', iframe.src);
+      console.log('Iframe dimensions:', iframe.offsetWidth, 'x', iframe.offsetHeight);
+      
+      // Check if iframe is actually visible
+      const rect = iframe.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        console.error('WARNING: Iframe has zero dimensions!');
+        console.error('Viewer content dimensions:', document.querySelector('.viewer-content')?.getBoundingClientRect());
+      }
       
       // Try to access iframe content to check for errors
       try {
         const iframeWindow = iframe.contentWindow;
         if (iframeWindow) {
+          console.log('Iframe window accessible');
           // Listen for messages from noVNC iframe
-          window.addEventListener('message', (event) => {
+          const messageHandler = (event) => {
             if (event.data && typeof event.data === 'string') {
               if (event.data.includes('noVNC') || event.data.includes('RFB')) {
                 console.log('noVNC message:', event.data);
               }
             }
-          });
+          };
+          window.addEventListener('message', messageHandler);
+          // Store handler for cleanup
+          this._messageHandler = messageHandler;
         }
       } catch (e) {
-        // Cross-origin restrictions - this is expected if noVNC is on a different origin
-        console.log('Cannot access iframe content (cross-origin):', e.message);
+        // Cross-origin restrictions - this is expected
+        console.log('Cannot access iframe content (cross-origin, this is normal):', e.message);
       }
+      
+      // Check iframe after a moment to see if content loaded
+      setTimeout(() => {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframeDoc) {
+            console.log('Iframe document accessible');
+            console.log('Iframe document ready state:', iframeDoc.readyState);
+            const body = iframeDoc.body;
+            if (body) {
+              console.log('Iframe body found, innerHTML length:', body.innerHTML?.length || 0);
+            }
+          }
+        } catch (e) {
+          console.log('Cannot access iframe document (cross-origin, this is normal)');
+        }
+      }, 1000);
     };
   }
 
@@ -233,6 +287,12 @@ class VMViewer {
     if (this._resizeHandler) {
       window.removeEventListener('resize', this._resizeHandler);
       this._resizeHandler = null;
+    }
+    
+    // Remove message handler
+    if (this._messageHandler) {
+      window.removeEventListener('message', this._messageHandler);
+      this._messageHandler = null;
     }
     
     this.stopProgressPolling();
