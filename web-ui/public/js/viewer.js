@@ -138,11 +138,14 @@ class VMViewer {
     const vmName = this.currentVMName;
     const websockifyPath = `/websockify/${vmName}`;
     
-    // noVNC URL with path parameter for WebSocket connection
-    // The path parameter tells noVNC to connect to the VM-specific websockify route
-    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true`;
+    // noVNC URL format - match vapiorc's approach
+    // vapiorc uses: http://localhost:8006/ (root path)
+    // We use: http://localhost:3000/novnc/vnc.html with WebSocket path parameter
+    // The path parameter is critical - it tells noVNC where to connect the WebSocket
+    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true&reconnect_delay=1000`;
     console.log('Loading noVNC from Express:', novncUrl);
-    console.log('WebSocket will connect to Express path', websockifyPath, 'which proxies to VM-specific websockify port');
+    console.log('WebSocket path:', websockifyPath);
+    console.log('Full WebSocket URL will be: ws://localhost:' + expressPort + websockifyPath);
     
     iframe.style.display = 'block';
     iframe.src = novncUrl;
@@ -160,15 +163,34 @@ class VMViewer {
               <p>Error: Failed to load noVNC viewer</p>
               <p style="font-size: 12px; color: #888;">Express server may not be running on port ${expressPort}</p>
               <p style="font-size: 12px; color: #888;">Check that the server is started and noVNC files are available</p>
+              <p style="font-size: 12px; color: #888;">Run: make setup-novnc to install noVNC files</p>
             </div>
           </div>
         `;
       }
     };
     
-    // Log successful load
+    // Log successful load and check for WebSocket connection
     iframe.onload = () => {
-      console.log('noVNC iframe loaded successfully from nginx');
+      console.log('noVNC iframe loaded successfully');
+      
+      // Try to access iframe content to check for errors
+      try {
+        const iframeWindow = iframe.contentWindow;
+        if (iframeWindow) {
+          // Listen for messages from noVNC iframe
+          window.addEventListener('message', (event) => {
+            if (event.data && typeof event.data === 'string') {
+              if (event.data.includes('noVNC') || event.data.includes('RFB')) {
+                console.log('noVNC message:', event.data);
+              }
+            }
+          });
+        }
+      } catch (e) {
+        // Cross-origin restrictions - this is expected if noVNC is on a different origin
+        console.log('Cannot access iframe content (cross-origin):', e.message);
+      }
     };
   }
 

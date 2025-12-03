@@ -42,7 +42,13 @@ app.use(express.static(path.join(__dirname, 'public'), {
 
 // Serve noVNC files from the novnc directory (simpler than nginx!)
 const novncDir = path.join(REPO_ROOT, 'novnc');
-app.use('/novnc', express.static(novncDir));
+if (!require('fs').existsSync(novncDir)) {
+  console.warn(`WARNING: noVNC directory not found at ${novncDir}`);
+  console.warn('Run "make setup-novnc" to download and install noVNC files');
+} else {
+  app.use('/novnc', express.static(novncDir));
+  console.log(`noVNC files served from: ${novncDir}`);
+}
 
 // Store proxy instances for WebSocket upgrades
 const proxyInstances = new Map();
