@@ -59,6 +59,11 @@ check-deps-macos:
 		echo "Installing websockify via pip..."; \
 		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
 	fi
+	@echo "Checking for nginx..."
+	@if ! command -v nginx >/dev/null 2>&1; then \
+		echo "nginx not found. Installing nginx..."; \
+		brew install nginx; \
+	fi
 	@echo "All macOS dependencies installed"
 
 check-deps-linux:

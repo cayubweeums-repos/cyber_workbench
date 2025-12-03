@@ -1292,9 +1292,10 @@ class VMOperations:
         Returns:
             WebSocket port number if successful, None otherwise
         """
-        # Calculate websocket port if not provided (use 6080 + hash of VM name)
+        # Use fixed port 6080 for websockify (nginx proxies to this port)
+        # nginx serves noVNC files and proxies WebSocket connections to websockify
         if websocket_port is None:
-            websocket_port = 6080 + (hash(vm_name) % 1000)
+            websocket_port = 6080
         
         try:
             # Check if websockify is installed - try multiple methods
@@ -1338,71 +1339,18 @@ class VMOperations:
                 print(f"Websockify already running on port {websocket_port}")
                 return websocket_port
             
-            # Start websockify - use --web flag to serve noVNC files (like vapiorc)
-            # Check for noVNC files in multiple locations
-            import os
-            from pathlib import Path
-            
-            # Try to find noVNC files (vapiorc approach - websockify serves noVNC via --web)
-            # Look for full noVNC release with vnc.html (for websockify --web)
-            repo_root = Path(__file__).parent.parent
-            novnc_paths = [
-                "/usr/share/novnc",  # Standard system location
-                str(repo_root / "novnc"),  # Our downloaded full release (from Makefile)
-                os.path.join(os.path.dirname(__file__), "..", "web-ui", "public", "js", "novnc"),  # Fallback: bundled core
-            ]
-            
-            # Also check websockify's built-in web directory
-            try:
-                import websockify as ws_module
-                ws_dir = os.path.dirname(ws_module.__file__)
-                web_dir = os.path.join(ws_dir, 'web')
-                if os.path.exists(web_dir):
-                    novnc_paths.insert(1, web_dir)  # Prefer websockify's built-in
-            except:
-                pass
-            
-            # Find first existing noVNC directory with vnc.html (required for websockify --web)
-            novnc_dir = None
-            for path in novnc_paths:
-                # Convert to absolute path
-                abs_path = os.path.abspath(path) if not os.path.isabs(path) else path
-                if os.path.exists(abs_path):
-                    # Check if it has vnc.html (required for websockify --web to work)
-                    vnc_html = os.path.join(abs_path, "vnc.html")
-                    if os.path.exists(vnc_html):
-                        novnc_dir = abs_path  # Use absolute path
-                        print(f"Found noVNC directory with vnc.html: {novnc_dir}", flush=True)
-                        break
-                    # Fallback: check for app/ui.js or core/rfb.js (but vnc.html is preferred)
-                    elif os.path.exists(os.path.join(abs_path, "app", "ui.js")) or \
-                         os.path.exists(os.path.join(abs_path, "core", "rfb.js")):
-                        print(f"Found noVNC directory (no vnc.html): {abs_path}", flush=True)
-                        print(f"WARNING: vnc.html not found, websockify --web may not work correctly", flush=True)
-                        novnc_dir = abs_path
-                        break
-            
-            # Don't use --web flag - it's causing 405 errors
-            # Instead, serve noVNC from Express server and use websockify only for WebSocket
-            # This matches how vapiorc works (nginx serves noVNC, websockify handles WebSocket)
+            # Start websockify WITHOUT --web flag
+            # nginx serves noVNC files and proxies WebSocket connections to websockify
+            # websockify only handles WebSocket to VNC TCP conversion
             cmd = [
                 websockify_path,
                 str(websocket_port),
                 f"127.0.0.1:{vnc_port}"
             ]
-            print(f"Starting websockify (WebSocket only, no --web flag)", flush=True)
+            print(f"Starting websockify (WebSocket only, nginx serves noVNC files)", flush=True)
             print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
-            print(f"noVNC will be served from Express server at /novnc/", flush=True)
+            print(f"noVNC will be served from nginx at http://localhost:8006/", flush=True)
             print(f"Full command: {' '.join(cmd)}", flush=True)
-            else:
-                # Fallback: don't use --web (websockify will still work, but no web UI)
-                cmd = [
-                    websockify_path,
-                    str(websocket_port),
-                    f"127.0.0.1:{vnc_port}"
-                ]
-                print("WARNING: noVNC directory not found, websockify running without --web flag", flush=True)
-                print("noVNC web interface will not be available. Install noVNC or use bundled version.", flush=True)
             
             # Try to start websockify
             # Log the command for debugging
@@ -1423,8 +1371,7 @@ class VMOperations:
             if process.poll() is None:
                 # Process is still running, good
                 print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
-                print(f"Access noVNC at: http://127.0.0.1:{websocket_port}/vnc.html", flush=True)
-                print(f"If you see 405 errors, check that websockify --web flag is working correctly", flush=True)
+                print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
                 return websocket_port
             else:
                 # Process exited, check for errors

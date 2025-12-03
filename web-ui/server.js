@@ -37,13 +37,8 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// Serve noVNC files from repo root (like vapiorc uses nginx)
-// We serve noVNC from Express, websockify only handles WebSocket connections
-const novncPath = path.join(__dirname, '..', 'novnc');
-if (require('fs').existsSync(novncPath)) {
-  app.use('/novnc', express.static(novncPath));
-  console.log(`noVNC files available at /novnc/ (served from Express, like vapiorc uses nginx)`);
-}
+// noVNC files are now served by nginx on port 8006 (not Express)
+// nginx handles both static file serving and WebSocket proxying to websockify
 
 // Serve docs.html for /docs route
 app.get('/docs', (req, res) => {

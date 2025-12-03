@@ -1,5 +1,6 @@
 /**
- * VM Viewer - Handles VM viewing with noVNC and progress
+ * VM Viewer - Handles VM viewing with noVNC via nginx
+ * Uses nginx on port 8006 to serve noVNC files and proxy WebSocket connections
  * Follows OOP and modular design
  */
 class VMViewer {
@@ -9,7 +10,7 @@ class VMViewer {
     this.vmService = services.get('vm');
   }
 
-  open(vmName, websocketPort) {
+  open(vmName, viewerPort) {
     this.currentVMName = vmName;
     const viewerContainer = document.getElementById('viewer-container');
     const progressDiv = document.getElementById('viewer-progress');
@@ -18,13 +19,14 @@ class VMViewer {
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
-    if (websocketPort) {
-      // VM is running, show VNC iframe (like vapiorc)
+    // viewerPort is now the nginx port (8006), not websockify port
+    if (viewerPort) {
+      // VM is running, show VNC iframe (nginx serves noVNC)
       progressDiv.style.display = 'none';
       if (iframe) {
         iframe.style.display = 'block';
       }
-      this.initNoVNC(websocketPort);
+      this.initNoVNC(viewerPort);
       this.stopProgressPolling();
     } else {
       // VM not running, show progress
@@ -121,8 +123,9 @@ class VMViewer {
     }
   }
 
-  async initNoVNC(websocketPort) {
-    // Use iframe approach like vapiorc - websockify serves noVNC with --web flag
+  async initNoVNC(nginxPort) {
+    // Use iframe approach - nginx serves noVNC on port 8006
+    // nginx proxies WebSocket connections to websockify on port 6080
     const iframe = document.getElementById('novnc-viewer');
     
     if (!iframe) {
@@ -130,15 +133,11 @@ class VMViewer {
       return;
     }
 
-    // Serve noVNC from Express (like vapiorc uses nginx)
-    // websockify only handles WebSocket connections, not static files
-    // This avoids 405 errors from websockify --web flag
-    // Serve noVNC from Express (like vapiorc uses nginx)
-    // websockify only handles WebSocket connections, not static files
-    // noVNC is served from /novnc/ and connects to websockify via WebSocket
-    const novncUrl = `/novnc/vnc.html?host=127.0.0.1&port=${websocketPort}&autoconnect=true&resize=scale&reconnect=true`;
-    console.log('Loading noVNC from Express server:', novncUrl);
-    console.log('WebSocket will connect to: ws://127.0.0.1:' + websocketPort + '/');
+    // nginx serves noVNC at http://localhost:8006/vnc.html
+    // noVNC will connect to ws://localhost:8006/ which nginx proxies to websockify
+    const novncUrl = `http://localhost:${nginxPort}/vnc.html?host=localhost&port=${nginxPort}&autoconnect=true&resize=scale&reconnect=true`;
+    console.log('Loading noVNC from nginx:', novncUrl);
+    console.log('WebSocket will connect via nginx to websockify');
     
     iframe.style.display = 'block';
     iframe.src = novncUrl;
@@ -154,8 +153,8 @@ class VMViewer {
           <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #f00; text-align: center;">
             <div>
               <p>Error: Failed to load noVNC viewer</p>
-              <p style="font-size: 12px; color: #888;">Websockify may not be running on port ${websocketPort}</p>
-              <p style="font-size: 12px; color: #888;">Check that websockify started with --web flag</p>
+              <p style="font-size: 12px; color: #888;">nginx may not be running on port ${nginxPort}</p>
+              <p style="font-size: 12px; color: #888;">Check that nginx is started and serving noVNC files</p>
             </div>
           </div>
         `;
@@ -164,12 +163,12 @@ class VMViewer {
     
     // Log successful load
     iframe.onload = () => {
-      console.log('noVNC iframe loaded successfully');
+      console.log('noVNC iframe loaded successfully from nginx');
     };
   }
 
   close() {
-    // Clear iframe src when closing (like vapiorc)
+    // Clear iframe src when closing
     const iframe = document.getElementById('novnc-viewer');
     if (iframe) {
       iframe.src = '';
@@ -194,4 +193,3 @@ window.closeViewer = () => {
     window.vmViewerInstance.close();
   }
 };
-

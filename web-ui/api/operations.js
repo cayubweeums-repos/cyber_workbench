@@ -7,6 +7,7 @@ const path = require('path');
 const { REPO_ROOT } = require('./python-bridge');
 const { setProgress, clearProgress } = require('./progress');
 const sudoPassword = require('./sudo-password');
+const nginxManager = require('./nginx-manager');
 
 /**
  * Create VM disk image
@@ -545,7 +546,7 @@ except Exception as e:
       reject(new Error(`Failed to start VM process: ${err.message}`));
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       console.log(`[VM Start ${vmName}] Process exited with code ${code}`);
       if (stdout.trim()) {
         console.log(`[VM Start ${vmName}] stdout: "${stdout.trim()}"`);
@@ -555,6 +556,13 @@ except Exception as e:
       }
       
       if (code === 0 && stdout.includes('SUCCESS')) {
+        // Start nginx if not already running
+        try {
+          await nginxManager.startNginx();
+        } catch (error) {
+          console.warn(`[VM Start ${vmName}] Failed to start nginx: ${error.message}`);
+          // Don't fail VM start if nginx fails - user can start it manually
+        }
         resolve(true);
       } else if (code === 0 && stdout.includes('FAILED')) {
         const errorMsg = stderr.trim() || stdout.trim() || 'VM start returned FAILED';
@@ -661,7 +669,15 @@ except Exception as e:
 }
 
 async function startWebsockify(vmName, vncPort = 5900) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
+    // Ensure nginx is running first
+    try {
+      await nginxManager.startNginx();
+    } catch (error) {
+      console.warn(`[Websockify ${vmName}] Failed to start nginx: ${error.message}`);
+      // Continue anyway - nginx might already be running
+    }
+
     const python = require('./python-bridge').getPythonExecutable();
     const script = `
 import sys
@@ -690,7 +706,9 @@ else:
     proc.on('close', (code) => {
       const match = output.match(/PORT:(\d+)/);
       if (match) {
-        resolve(parseInt(match[1]));
+        // Return nginx port (8006) instead of websockify port
+        // nginx serves noVNC and proxies to websockify
+        resolve(8006);
       } else {
         reject(new Error(`Failed to start websockify: ${output}`));
       }
