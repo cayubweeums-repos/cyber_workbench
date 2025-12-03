@@ -19,37 +19,15 @@ class VMViewer {
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
-    // Force a reflow to ensure the container is visible before setting up iframe
-    void viewerContainer.offsetHeight;
-    
     // viewerPort is now the Express port (3000), not websockify port
     if (viewerPort) {
       // VM is running, show VNC iframe (Express serves noVNC)
       progressDiv.style.display = 'none';
       if (iframe) {
-        // Ensure iframe is visible and properly sized
         iframe.style.display = 'block';
-        iframe.style.visibility = 'visible';
-        iframe.style.opacity = '1';
-        iframe.style.zIndex = '1';
       }
-      // Small delay to ensure DOM is ready and container has dimensions
-      setTimeout(() => {
-        // Verify viewer-content has dimensions before initializing
-        const viewerContent = document.querySelector('.viewer-content');
-        if (viewerContent) {
-          const rect = viewerContent.getBoundingClientRect();
-          console.log('Viewer content dimensions on open:', rect.width, 'x', rect.height);
-          if (rect.width === 0 || rect.height === 0) {
-            console.warn('Viewer content has zero dimensions, forcing layout...');
-            // Force layout recalculation
-            viewerContent.style.display = 'none';
-            void viewerContent.offsetHeight;
-            viewerContent.style.display = '';
-          }
-        }
-        this.initNoVNC(viewerPort);
-      }, 150);
+      // Simple initialization - same as test file
+      this.initNoVNC(viewerPort);
       this.stopProgressPolling();
     } else {
       // VM not running, show progress
@@ -147,8 +125,7 @@ class VMViewer {
   }
 
   async initNoVNC(expressPort) {
-    // Use iframe approach - Express serves noVNC directly
-    // Express proxies WebSocket connections to websockify
+    // Use exact same iframe setup as test-iframe.html (simple approach)
     const iframe = document.getElementById('novnc-viewer');
     
     if (!iframe) {
@@ -164,179 +141,26 @@ class VMViewer {
     // This matches the working URL format: path=websockify/test_full_novnc
     const websockifyPath = `websockify/${vmName}`;
     
-    // noVNC URL format - correct path parameter format
-    // path should be: websockify/{vmName} (no leading slash, not encoded)
-    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true&resize=scale&reconnect=true&reconnect_delay=1000`;
-    console.log('Loading noVNC from Express:', novncUrl);
-    console.log('WebSocket path:', websockifyPath);
-    console.log('Full WebSocket URL will be: ws://localhost:' + expressPort + '/' + websockifyPath);
+    // noVNC URL format - exact same as test-iframe.html
+    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true`;
     
-    // Ensure iframe fills available space and auto-resizes
-    iframe.style.display = 'block';
-    iframe.style.visibility = 'visible';
-    iframe.style.opacity = '1';
-    iframe.style.width = '100%';
-    iframe.style.height = '100%';
-    iframe.style.border = 'none';
-    iframe.style.background = '#000';
-    iframe.style.position = 'absolute';
-    iframe.style.top = '0';
-    iframe.style.left = '0';
-    iframe.style.zIndex = '1';
+    // Set iframe src - simple approach like test file (no delays, no complex setup)
+    iframe.src = novncUrl;
     
-    // Clear any previous src to force reload
-    iframe.src = '';
-    
-    // Small delay to ensure iframe is ready, then set src
-    setTimeout(() => {
-      console.log('Setting iframe src to:', novncUrl);
-      iframe.src = novncUrl;
-      
-      // Verify iframe is visible
+    // Log successful load (same as test file)
+    iframe.onload = () => {
+      console.log('Iframe loaded');
       const rect = iframe.getBoundingClientRect();
       console.log('Iframe dimensions:', rect.width, 'x', rect.height);
-      console.log('Iframe visible:', rect.width > 0 && rect.height > 0);
-    }, 50);
-    
-    // Auto-resize iframe when window resizes - use explicit pixel dimensions like test file
-    const resizeIframe = () => {
-      const viewerContent = document.querySelector('.viewer-content');
-      const viewerContainer = document.querySelector('.viewer-container');
-      
-      if (viewerContent && iframe && viewerContainer) {
-        // Get container dimensions (it's position: fixed, so it fills viewport)
-        const containerRect = viewerContainer.getBoundingClientRect();
-        const headerHeight = document.querySelector('.viewer-header')?.offsetHeight || 60;
-        
-        // Calculate available space for content (container height minus header)
-        const availableWidth = containerRect.width || window.innerWidth;
-        const availableHeight = (containerRect.height - headerHeight) || (window.innerHeight - headerHeight);
-        
-        console.log('Container dimensions:', containerRect.width, 'x', containerRect.height);
-        console.log('Header height:', headerHeight);
-        console.log('Available space for iframe:', availableWidth, 'x', availableHeight);
-        
-        // Set explicit pixel dimensions (like test file uses 100vw/100vh)
-        iframe.style.width = `${availableWidth}px`;
-        iframe.style.height = `${availableHeight}px`;
-        
-        // Also ensure viewer-content has the same dimensions
-        viewerContent.style.width = `${availableWidth}px`;
-        viewerContent.style.height = `${availableHeight}px`;
-        
-        console.log('Iframe set to:', iframe.style.width, 'x', iframe.style.height);
-      }
-    };
-    
-    // Initial resize - wait for DOM and layout to settle
-    setTimeout(() => {
-      resizeIframe();
-      // Also trigger on next frame to ensure layout is complete
-      requestAnimationFrame(() => {
-        resizeIframe();
-        // One more check after a brief delay
-        setTimeout(resizeIframe, 50);
-      });
-    }, 200);
-    
-    // Resize on window resize
-    window.addEventListener('resize', resizeIframe);
-    
-    // Store resize handler so we can remove it later
-    this._resizeHandler = resizeIframe;
-    
-    // Handle iframe load errors
-    iframe.onerror = (error) => {
-      console.error('Failed to load noVNC iframe:', error);
-      iframe.style.display = 'none';
-      // Show error message
-      const viewerContent = document.querySelector('.viewer-content');
-      if (viewerContent) {
-        viewerContent.innerHTML = `
-          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #f00; text-align: center;">
-            <div>
-              <p>Error: Failed to load noVNC viewer</p>
-              <p style="font-size: 12px; color: #888;">Express server may not be running on port ${expressPort}</p>
-              <p style="font-size: 12px; color: #888;">Check that the server is started and noVNC files are available</p>
-              <p style="font-size: 12px; color: #888;">Run: make setup-novnc to install noVNC files</p>
-            </div>
-          </div>
-        `;
-      }
-    };
-    
-    // Log successful load and check for WebSocket connection
-    iframe.onload = () => {
-      console.log('noVNC iframe loaded successfully');
-      console.log('Iframe src:', iframe.src);
-      console.log('Iframe dimensions:', iframe.offsetWidth, 'x', iframe.offsetHeight);
-      
-      // Check if iframe is actually visible
-      const rect = iframe.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) {
-        console.error('WARNING: Iframe has zero dimensions!');
-        console.error('Viewer content dimensions:', document.querySelector('.viewer-content')?.getBoundingClientRect());
-      }
-      
-      // Try to access iframe content to check for errors
-      try {
-        const iframeWindow = iframe.contentWindow;
-        if (iframeWindow) {
-          console.log('Iframe window accessible');
-          // Listen for messages from noVNC iframe
-          const messageHandler = (event) => {
-            if (event.data && typeof event.data === 'string') {
-              if (event.data.includes('noVNC') || event.data.includes('RFB')) {
-                console.log('noVNC message:', event.data);
-              }
-            }
-          };
-          window.addEventListener('message', messageHandler);
-          // Store handler for cleanup
-          this._messageHandler = messageHandler;
-        }
-      } catch (e) {
-        // Cross-origin restrictions - this is expected
-        console.log('Cannot access iframe content (cross-origin, this is normal):', e.message);
-      }
-      
-      // Check iframe after a moment to see if content loaded
-      setTimeout(() => {
-        try {
-          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (iframeDoc) {
-            console.log('Iframe document accessible');
-            console.log('Iframe document ready state:', iframeDoc.readyState);
-            const body = iframeDoc.body;
-            if (body) {
-              console.log('Iframe body found, innerHTML length:', body.innerHTML?.length || 0);
-            }
-          }
-        } catch (e) {
-          console.log('Cannot access iframe document (cross-origin, this is normal)');
-        }
-      }, 1000);
     };
   }
 
   close() {
-    // Clear iframe src when closing
+    // Clear iframe src when closing (same as test file cleanup)
     const iframe = document.getElementById('novnc-viewer');
     if (iframe) {
       iframe.src = '';
       iframe.style.display = 'none';
-    }
-    
-    // Remove resize handler
-    if (this._resizeHandler) {
-      window.removeEventListener('resize', this._resizeHandler);
-      this._resizeHandler = null;
-    }
-    
-    // Remove message handler
-    if (this._messageHandler) {
-      window.removeEventListener('message', this._messageHandler);
-      this._messageHandler = null;
     }
     
     this.stopProgressPolling();
