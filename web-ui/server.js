@@ -44,23 +44,59 @@ app.use(express.static(path.join(__dirname, 'public'), {
 const novncDir = path.join(REPO_ROOT, 'novnc');
 app.use('/novnc', express.static(novncDir));
 
+// Store proxy instances for WebSocket upgrades
+const proxyInstances = new Map();
+
+// Helper function to get or create proxy for a VM
+async function getProxyForVM(vmName) {
+  if (proxyInstances.has(vmName)) {
+    const cached = proxyInstances.get(vmName);
+    // Verify the port is still correct
+    const currentPort = await vmTracker.getWebsockifyPort(vmName);
+    if (currentPort && cached.port === currentPort) {
+      return cached.proxy;
+    }
+    // Port changed, remove old proxy
+    console.log(`Proxy port changed for ${vmName}, recreating proxy`);
+    proxyInstances.delete(vmName);
+  }
+
+  const websockifyPort = await vmTracker.getWebsockifyPort(vmName);
+  if (!websockifyPort) {
+    console.error(`No websockify port found for VM ${vmName}`);
+    return null;
+  }
+
+  console.log(`Creating proxy for VM ${vmName} -> websockify port ${websockifyPort}`);
+  const proxy = createProxyMiddleware({
+    target: `http://127.0.0.1:${websockifyPort}`,
+    ws: true, // Enable WebSocket proxying
+    changeOrigin: true,
+    logLevel: 'info', // Changed to 'info' for debugging
+    onError: (err, req, res) => {
+      console.error(`Proxy error for ${vmName}:`, err.message);
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      console.log(`[${vmName}] Proxying request to websockify: ${req.method} ${req.url}`);
+    },
+    onProxyReqWs: (proxyReq, req, socket) => {
+      console.log(`[${vmName}] Proxying WebSocket upgrade to websockify`);
+    }
+  });
+
+  proxyInstances.set(vmName, { proxy, port: websockifyPort });
+  return proxy;
+}
+
 // Proxy WebSocket connections to websockify ports
 // Format: /websockify/:vmName -> proxies to the VM's websockify port
 app.use('/websockify/:vmName', async (req, res, next) => {
   const { vmName } = req.params;
   try {
-    const websockifyPort = await vmTracker.getWebsockifyPort(vmName);
-    if (!websockifyPort) {
+    const proxy = await getProxyForVM(vmName);
+    if (!proxy) {
       return res.status(404).json({ error: `VM ${vmName} not found or websockify not running` });
     }
-
-    // Create proxy middleware for this specific VM
-    const proxy = createProxyMiddleware({
-      target: `http://127.0.0.1:${websockifyPort}`,
-      ws: true, // Enable WebSocket proxying
-      changeOrigin: true,
-      logLevel: 'warn'
-    });
 
     proxy(req, res, next);
   } catch (error) {
@@ -100,6 +136,40 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
   }
 });
 
-// http-proxy-middleware automatically handles WebSocket upgrades when ws: true is set
-// No additional upgrade handler needed!
+// Handle WebSocket upgrades - http-proxy-middleware needs this
+server.on('upgrade', async (request, socket, head) => {
+  const pathname = request.url;
+  console.log(`WebSocket upgrade request: ${pathname}`);
+  
+  // Check if this is a websockify connection
+  if (pathname && pathname.startsWith('/websockify/')) {
+    const parts = pathname.split('/');
+    if (parts.length >= 3) {
+      const vmName = parts[2];
+      console.log(`WebSocket upgrade for VM: ${vmName}`);
+      
+      try {
+        // Get or create the proxy instance for this VM
+        const proxy = await getProxyForVM(vmName);
+        if (proxy) {
+          console.log(`Proxying WebSocket upgrade for ${vmName}`);
+          // Use the proxy's upgrade handler
+          proxy.upgrade(request, socket, head);
+        } else {
+          console.error(`WebSocket upgrade failed: VM ${vmName} not found or websockify not running`);
+          socket.destroy();
+        }
+      } catch (err) {
+        console.error(`Error handling WebSocket upgrade for ${vmName}:`, err);
+        socket.destroy();
+      }
+    } else {
+      console.error(`Invalid WebSocket path: ${pathname}`);
+      socket.destroy();
+    }
+  } else {
+    console.log(`Ignoring non-websockify upgrade: ${pathname}`);
+    socket.destroy();
+  }
+});
 
