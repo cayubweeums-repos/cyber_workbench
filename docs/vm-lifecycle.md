@@ -29,25 +29,29 @@ graph TB
     Prepare --> Ready[VM Ready]
     Ready --> StartVM[User Starts VM]
     StartVM --> QEMU[QEMU Process]
-    QEMU --> VNC[VNC Server]
-    VNC --> WebSockify[Websockify Proxy]
-    WebSockify --> Browser[Browser Viewer]
+    QEMU --> VNC[VNC Server :5900]
+    VNC --> WebSockify[Websockify Proxy<br/>Port 6080-7079]
+    WebSockify --> Nginx[nginx :8006]
+    Nginx --> Browser[Browser noVNC]
     
     style Start fill:#dafc7b
     style Ready fill:#77874c
     style Browser fill:#dafc7b
+    style Nginx fill:#77874c
 ```
 
-## VM Start Sequence
+## VM Start Sequence (Multi-VM Architecture)
 
 ```mermaid
 sequenceDiagram
     participant User
     participant UI
     participant API
+    participant Tracker as VM Tracker
     participant Python
     participant QEMU
     participant WebSockify
+    participant Nginx
     participant Browser
     
     User->>UI: Click Start
@@ -59,15 +63,24 @@ sequenceDiagram
     API-->>UI: Success
     UI->>API: GET /vms/:name/viewer-port
     API->>Python: start_websockify()
-    Python->>WebSockify: Start proxy
+    Python->>WebSockify: Start proxy (port 6080-7079)
     WebSockify-->>Python: Port number
     Python-->>API: Port
-    API-->>UI: Port
-    UI->>Browser: Connect noVNC
-    Browser->>WebSockify: WebSocket
-    WebSockify->>QEMU: VNC
-    QEMU-->>WebSockify: Display
-    WebSockify-->>Browser: Render
+    API->>Tracker: registerVM(name, port)
+    Tracker->>Nginx: startNginx() if first VM
+    API->>Nginx: updateNginxConfigForVM()
+    Nginx->>Nginx: Add route /websockify/{vmname}
+    Nginx-->>API: Config updated
+    API-->>UI: Port 8006 + path
+    UI->>Browser: Load noVNC from nginx
+    Browser->>Nginx: GET /vnc.html?path=/websockify/{vmname}
+    Nginx->>Browser: noVNC files
+    Browser->>Nginx: WebSocket upgrade /websockify/{vmname}
+    Nginx->>WebSockify: Proxy to VM's websockify port
+    WebSockify->>QEMU: VNC connection
+    QEMU-->>WebSockify: Display data
+    WebSockify-->>Nginx: WebSocket data
+    Nginx-->>Browser: Render in noVNC
 ```
 
 ## Progress Tracking

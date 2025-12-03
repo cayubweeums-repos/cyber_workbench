@@ -73,16 +73,16 @@ class VMViewer {
               
               if (desktopReady.ready) {
                 // Desktop is ready, get viewer port and show VNC
-                const port = await this.vmService.getViewerPort(vmName);
+                const viewerInfo = await this.vmService.getViewerPort(vmName);
                 
-                if (port) {
+                if (viewerInfo && viewerInfo.port) {
                   this.stopProgressPolling();
                   document.getElementById('viewer-progress').style.display = 'none';
                   const iframe = document.getElementById('novnc-viewer');
                   if (iframe) {
                     iframe.style.display = 'block';
                   }
-                  this.initNoVNC(port);
+                  this.initNoVNC(viewerInfo.port);
                 }
               } else {
                 // Desktop not ready yet, show status
@@ -93,16 +93,16 @@ class VMViewer {
             } catch (error) {
               // QGA not available or error, try to get viewer port anyway
               console.warn('Desktop ready check failed:', error);
-              const port = await this.vmService.getViewerPort(vmName);
+              const viewerInfo = await this.vmService.getViewerPort(vmName);
               
-              if (port) {
+              if (viewerInfo && viewerInfo.port) {
                 this.stopProgressPolling();
                 document.getElementById('viewer-progress').style.display = 'none';
                 const iframe = document.getElementById('novnc-viewer');
                 if (iframe) {
                   iframe.style.display = 'block';
                 }
-                this.initNoVNC(port);
+                this.initNoVNC(viewerInfo.port);
               }
             }
           }
@@ -134,10 +134,16 @@ class VMViewer {
     }
 
     // nginx serves noVNC at http://localhost:8006/vnc.html
-    // noVNC will connect to ws://localhost:8006/ which nginx proxies to websockify
-    const novncUrl = `http://localhost:${nginxPort}/vnc.html?host=localhost&port=${nginxPort}&autoconnect=true&resize=scale&reconnect=true`;
+    // noVNC will connect to ws://localhost:8006/websockify/{vmName} which nginx proxies to the VM's websockify port
+    // We need to get the websockify port for this VM and construct the WebSocket path
+    const vmName = this.currentVMName;
+    const websockifyPath = `/websockify/${vmName}`;
+    
+    // noVNC URL with path parameter for WebSocket connection
+    // The path parameter tells noVNC to connect to the VM-specific websockify route
+    const novncUrl = `http://localhost:${nginxPort}/vnc.html?host=localhost&port=${nginxPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true&resize=scale&reconnect=true`;
     console.log('Loading noVNC from nginx:', novncUrl);
-    console.log('WebSocket will connect via nginx to websockify');
+    console.log('WebSocket will connect to nginx path', websockifyPath, 'which proxies to VM-specific websockify port');
     
     iframe.style.display = 'block';
     iframe.src = novncUrl;

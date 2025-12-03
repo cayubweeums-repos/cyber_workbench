@@ -1292,10 +1292,13 @@ class VMOperations:
         Returns:
             WebSocket port number if successful, None otherwise
         """
-        # Use fixed port 6080 for websockify (nginx proxies to this port)
-        # nginx serves noVNC files and proxies WebSocket connections to websockify
+        # Use dynamic port for websockify (6080 + hash of VM name)
+        # This allows multiple VMs to run simultaneously, each with its own websockify instance
+        # nginx will route to the correct websockify based on VM name
         if websocket_port is None:
-            websocket_port = 6080
+            # Use hash of VM name to get a consistent port per VM (6080-7079 range)
+            port_hash = abs(hash(vm_name)) % 1000
+            websocket_port = 6080 + port_hash
         
         try:
             # Check if websockify is installed - try multiple methods
@@ -1328,7 +1331,7 @@ class VMOperations:
             
             print(f"Found websockify at: {websockify_path}")
             
-            # Check if websockify is already running for this VM
+            # Check if websockify is already running on this port for this VM
             result = subprocess.run(
                 ["pgrep", "-f", f"websockify.*{websocket_port}"],
                 capture_output=True,
@@ -1336,8 +1339,49 @@ class VMOperations:
             )
             
             if result.returncode == 0:
-                print(f"Websockify already running on port {websocket_port}")
-                return websocket_port
+                # Check if it's connected to the same VNC port (same VM)
+                existing_pids = result.stdout.strip().split('\n')
+                for pid in existing_pids:
+                    if pid:
+                        # Check what VNC port this websockify is connected to
+                        try:
+                            ps_result = subprocess.run(
+                                ["ps", "-p", pid, "-o", "args="],
+                                capture_output=True,
+                                text=True
+                            )
+                            if f"127.0.0.1:{vnc_port}" in ps_result.stdout:
+                                print(f"Websockify already running on port {websocket_port} for VNC {vnc_port} (VM {vm_name})")
+                                return websocket_port
+                        except:
+                            pass
+                
+                # Port conflict - another VM is using this port
+                # Try to find an available port nearby
+                print(f"WARNING: Port {websocket_port} is in use by another websockify instance")
+                print(f"Attempting to find an available port...")
+                
+                # Try ports in range 6080-7079
+                for attempt_port in range(6080, 7080):
+                    if attempt_port == websocket_port:
+                        continue
+                    try:
+                        import socket
+                        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        test_socket.settimeout(0.1)
+                        result = test_socket.connect_ex(('127.0.0.1', attempt_port))
+                        test_socket.close()
+                        if result != 0:
+                            # Port is available
+                            websocket_port = attempt_port
+                            print(f"Found available port: {websocket_port}")
+                            break
+                    except:
+                        continue
+                else:
+                    # No available port found
+                    print(f"ERROR: No available port found in range 6080-7079")
+                    return None
             
             # Start websockify WITHOUT --web flag
             # nginx serves noVNC files and proxies WebSocket connections to websockify
@@ -1356,6 +1400,20 @@ class VMOperations:
             # Log the command for debugging
             print(f"Starting websockify with command: {' '.join(cmd)}", flush=True)
             
+            # Check if port is already in use (by another process, not websockify)
+            try:
+                import socket
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_socket.settimeout(1)
+                result = test_socket.connect_ex(('127.0.0.1', websocket_port))
+                test_socket.close()
+                if result == 0:
+                    # Port is in use by something else
+                    print(f"ERROR: Port {websocket_port} is already in use by another process", flush=True)
+                    return None
+            except Exception as e:
+                print(f"Warning: Could not check if port {websocket_port} is available: {e}", flush=True)
+            
             # Start websockify - use DEVNULL to avoid blocking, but log startup
             process = subprocess.Popen(
                 cmd,
@@ -1369,14 +1427,29 @@ class VMOperations:
             
             # Check if process is still running
             if process.poll() is None:
-                # Process is still running, good
-                print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
-                print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
-                return websocket_port
+                # Verify port is actually listening
+                try:
+                    import socket
+                    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    test_socket.settimeout(1)
+                    result = test_socket.connect_ex(('127.0.0.1', websocket_port))
+                    test_socket.close()
+                    if result == 0:
+                        # Port is listening, success
+                        print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
+                        print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
+                        return websocket_port
+                    else:
+                        print(f"WARNING: Websockify process is running but port {websocket_port} is not listening", flush=True)
+                        return None
+                except Exception as e:
+                    print(f"Warning: Could not verify websockify port: {e}", flush=True)
+                    # Assume it's working if process is running
+                    return websocket_port
             else:
                 # Process exited, check for errors
                 print(f"ERROR: Websockify process exited with code {process.returncode}", flush=True)
-                print(f"HINT: Check websockify installation and --web flag support", flush=True)
+                print(f"HINT: Check websockify installation: pip install websockify", flush=True)
                 return None
                 
         except Exception as e:
@@ -1384,11 +1457,20 @@ class VMOperations:
             return None
     
     def stop_websockify(self, vm_name: str):
-        """Stop websockify proxy for a VM."""
+        """Stop websockify proxy for a specific VM.
+        
+        Each VM has its own websockify instance on a unique port.
+        We find it by calculating the expected port for this VM.
+        """
         try:
-            # Find and kill websockify processes
+            # Calculate the expected websockify port for this VM (same logic as start_websockify)
+            port_hash = abs(hash(vm_name)) % 1000
+            expected_port = 6080 + port_hash
+            vnc_port = 5900  # Default VNC port
+            
+            # Find websockify processes on the expected port for this VM
             result = subprocess.run(
-                ["pgrep", "-f", "websockify"],
+                ["pgrep", "-f", f"websockify.*{expected_port}.*127.0.0.1:{vnc_port}"],
                 capture_output=True,
                 text=True
             )
@@ -1397,7 +1479,37 @@ class VMOperations:
                 pids = result.stdout.strip().split('\n')
                 for pid in pids:
                     if pid:
-                        subprocess.run(["kill", pid], capture_output=True)
+                        try:
+                            # Verify this is the correct websockify for this VM
+                            ps_result = subprocess.run(
+                                ["ps", "-p", pid, "-o", "args="],
+                                capture_output=True,
+                                text=True
+                            )
+                            # Check both port and VNC connection match
+                            if str(expected_port) in ps_result.stdout and f"127.0.0.1:{vnc_port}" in ps_result.stdout:
+                                subprocess.run(["kill", pid], capture_output=True, timeout=5)
+                                print(f"Stopped websockify (PID {pid}) for VM {vm_name} on port {expected_port}")
+                                return
+                        except Exception as e:
+                            print(f"Error stopping websockify PID {pid}: {e}")
+            
+            # If not found by exact match, try finding by port only (fallback)
+            result = subprocess.run(
+                ["pgrep", "-f", f"websockify.*{expected_port}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        try:
+                            subprocess.run(["kill", pid], capture_output=True, timeout=5)
+                            print(f"Stopped websockify (PID {pid}) for VM {vm_name} on port {expected_port} (fallback match)")
+                        except Exception as e:
+                            print(f"Error stopping websockify PID {pid}: {e}")
         except Exception as e:
             print(f"Error stopping websockify: {e}")
 

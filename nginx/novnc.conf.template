@@ -1,4 +1,5 @@
-# nginx configuration for noVNC viewer
+# nginx configuration template for noVNC viewer
+# This is the base template - VM-specific routes are added dynamically
 # Serves noVNC files and proxies WebSocket connections to websockify
 # Port 8006 matches vapiorc for consistency
 # This is a standalone config file used with nginx -c option
@@ -26,22 +27,14 @@ http {
         root NOVNC_PATH_PLACEHOLDER;
         index vnc.html;
 
-        # WebSocket proxy routes for VMs (dynamically added)
+        # VM-specific WebSocket proxy routes are dynamically added here
         # Format: /websockify/{vmname} -> proxies to VM's websockify port
-        # These are added dynamically by nginx-manager.js
-        
-        # Default location - serve static files or proxy to default websockify
+        # These routes are inserted by updateNginxConfig() function
+        # INSERT_VM_ROUTES_HERE
+
+        # Default location - serve static files
         location / {
-            # Check if this is a WebSocket upgrade request to root
-            # This is for backward compatibility (single VM scenario)
-            if ($http_upgrade) {
-                # Try to proxy to a default websockify (first running VM)
-                # This will be handled by the dynamic VM routes above
-                # If no VM routes exist, this won't match and will serve static files
-                break;
-            }
-            
-            # Otherwise serve static files
+            # Serve static files
             try_files $uri $uri/ /vnc.html;
             
             # Set proper MIME types

@@ -226,6 +226,7 @@ async function stopVM(req, res) {
 
 /**
  * Get viewer port for VM (nginx port 8006)
+ * Also returns websockify path for the VM
  */
 async function getViewerPort(req, res) {
   try {
@@ -236,11 +237,16 @@ async function getViewerPort(req, res) {
       return res.status(400).json({ success: false, error: 'VM is not running' });
     }
     
-    // Start websockify (which also ensures nginx is running)
+    // Start websockify (which also ensures nginx is running and configured)
     await operations.startWebsockify(name);
     
-    // Return nginx port (8006) - nginx serves noVNC and proxies to websockify
-    res.json({ success: true, port: 8006 });
+    // Return nginx port (8006) and websockify path
+    // nginx serves noVNC and proxies to websockify via /websockify/{vmname}
+    res.json({ 
+      success: true, 
+      port: 8006,
+      websockifyPath: `/websockify/${name}`
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

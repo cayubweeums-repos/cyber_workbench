@@ -4,16 +4,25 @@
 
 ```mermaid
 graph TB
-    Browser[Browser] -->|HTTP/WS| Express[Express Server]
+    Browser[Browser] -->|HTTP| Express[Express Server :3000]
+    Browser -->|HTTP/WS| Nginx[nginx :8006]
     Express -->|Routes| API[API Layer]
     API -->|Subprocess| Python[Python Bridge]
     Python -->|Calls| VMManager[VMManager]
     Python -->|Calls| VMOps[VMOperations]
-    VMOps -->|QEMU| QEMU[QEMU Process]
-    VMOps -->|Websockify| WebSockify[Websockify Proxy]
-    WebSockify -->|VNC| Browser
+    VMOps -->|QEMU| QEMU1[QEMU VM1 :5900]
+    VMOps -->|QEMU| QEMU2[QEMU VM2 :5900]
+    VMOps -->|Websockify| WS1[Websockify VM1<br/>Port 6080-7079]
+    VMOps -->|Websockify| WS2[Websockify VM2<br/>Port 6080-7079]
+    WS1 -->|VNC| QEMU1
+    WS2 -->|VNC| QEMU2
+    Nginx -->|Proxy WS| WS1
+    Nginx -->|Proxy WS| WS2
+    Nginx -->|Serve| noVNC[noVNC Files]
     VMManager -->|YAML| Config[VM Configs]
     VMOps -->|qcow2| Disks[Disk Images]
+    API -->|Track| Tracker[VM Tracker]
+    Tracker -->|Manage| Nginx
 ```
 
 ## Layer Separation
@@ -178,20 +187,29 @@ cyber_workbench/
 │   ├── api/                   # Express API routes
 │   │   ├── routes.js          # Route definitions
 │   │   ├── vm.js              # VM endpoints
-│   │   ├── operations.js       # VM operations wrapper
+│   │   ├── operations.js      # VM operations wrapper
 │   │   ├── docs.js            # Documentation API
-│   │   └── python-bridge.js   # Python subprocess bridge
+│   │   ├── python-bridge.js   # Python subprocess bridge
+│   │   ├── nginx-manager.js   # nginx process management
+│   │   ├── vm-tracker.js      # VM tracking & lifecycle
+│   │   └── progress.js        # Progress tracking
 │   ├── public/                # Static files
 │   │   ├── js/
 │   │   │   ├── app.js         # Main app orchestrator
 │   │   │   ├── components/    # UI components
 │   │   │   ├── services/      # Service layer
 │   │   │   ├── models/        # Data models
-│   │   │   └── core/          # Core utilities
+│   │   │   ├── core/          # Core utilities
+│   │   │   └── viewer.js      # VM viewer (noVNC)
 │   │   └── css/               # Styles
 │   └── server.js              # Express server
-├── vm_manager.py              # Python: Config management
-├── vm_operations.py            # Python: QEMU operations
-└── docs/                       # Documentation
+├── nginx/                     # nginx configuration
+│   ├── novnc.conf            # Active nginx config (generated)
+│   ├── novnc.conf.template   # Template for config generation
+│   ├── nginx.pid             # nginx PID file
+│   └── vm-tracker.json       # VM tracking state
+├── vm_manager.py             # Python: Config management
+├── vm_operations.py           # Python: QEMU operations
+└── docs/                     # Documentation
 ```
 

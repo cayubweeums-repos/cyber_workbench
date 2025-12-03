@@ -57,8 +57,17 @@ app.get('*', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`VM Manager Web UI running on http://localhost:${PORT}`);
   console.log(`Open your browser to http://localhost:${PORT} to access the interface`);
+  
+  // Clean up any stale VM tracker entries on startup
+  try {
+    const vmTracker = require('./api/vm-tracker');
+    await vmTracker.cleanupStaleVMs();
+    console.log('VM tracker cleaned up');
+  } catch (error) {
+    console.warn('Failed to cleanup VM tracker:', error.message);
+  }
 });
 

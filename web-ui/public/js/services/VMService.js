@@ -49,7 +49,11 @@ class VMService {
 
   async getViewerPort(name) {
     const response = await this.api.get(`/vms/${name}/viewer-port`);
-    return response.port || null;
+    // Response includes both port and websockifyPath for multi-VM support
+    return response.port ? {
+      port: response.port,
+      websockifyPath: response.websockifyPath || `/websockify/${name}`
+    } : null;
   }
 
   async getProgress(name) {

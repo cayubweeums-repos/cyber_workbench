@@ -8,6 +8,7 @@ const { REPO_ROOT } = require('./python-bridge');
 const { setProgress, clearProgress } = require('./progress');
 const sudoPassword = require('./sudo-password');
 const nginxManager = require('./nginx-manager');
+const vmTracker = require('./vm-tracker');
 
 /**
  * Create VM disk image
@@ -556,13 +557,7 @@ except Exception as e:
       }
       
       if (code === 0 && stdout.includes('SUCCESS')) {
-        // Start nginx if not already running
-        try {
-          await nginxManager.startNginx();
-        } catch (error) {
-          console.warn(`[VM Start ${vmName}] Failed to start nginx: ${error.message}`);
-          // Don't fail VM start if nginx fails - user can start it manually
-        }
+        // VM started successfully - nginx will be started when websockify is called
         resolve(true);
       } else if (code === 0 && stdout.includes('FAILED')) {
         const errorMsg = stderr.trim() || stdout.trim() || 'VM start returned FAILED';
@@ -609,8 +604,14 @@ print('SUCCESS' if result else 'FAILED')
       output += data.toString();
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       if (code === 0 && output.includes('SUCCESS')) {
+        // Unregister VM from tracker (will stop nginx if last VM)
+        try {
+          await vmTracker.unregisterVM(vmName);
+        } catch (error) {
+          console.warn(`[VM Stop ${vmName}] Failed to unregister VM: ${error.message}`);
+        }
         resolve(true);
       } else {
         reject(new Error(`Failed to stop VM: ${output}`));
@@ -703,11 +704,27 @@ else:
       output += data.toString();
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       const match = output.match(/PORT:(\d+)/);
       if (match) {
-        // Return nginx port (8006) instead of websockify port
-        // nginx serves noVNC and proxies to websockify
+        const websockifyPort = parseInt(match[1]);
+        
+        // Register VM with tracker
+        try {
+          await vmTracker.registerVM(vmName, websockifyPort);
+        } catch (error) {
+          console.warn(`[Websockify ${vmName}] Failed to register VM: ${error.message}`);
+        }
+        
+        // Update nginx config to include route for this VM
+        try {
+          await nginxManager.updateNginxConfigForVM(vmName, websockifyPort);
+        } catch (error) {
+          console.warn(`[Websockify ${vmName}] Failed to update nginx config: ${error.message}`);
+        }
+        
+        // Return nginx port (8006) - nginx serves noVNC and proxies to websockify
+        // The viewer will use a URL parameter to specify which VM/websockify to connect to
         resolve(8006);
       } else {
         reject(new Error(`Failed to start websockify: ${output}`));
