@@ -236,6 +236,14 @@ async function startNginx() {
     throw new Error(`noVNC directory not found: ${NOVNC_DIR}. Run 'make setup-novnc' to download noVNC.`);
   }
 
+  // Ensure logs directory exists (nginx needs it for access.log and error.log)
+  const nginxDir = path.dirname(NGINX_CONFIG);
+  const logsDir = path.join(nginxDir, 'logs');
+  if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+    console.log(`Created nginx logs directory: ${logsDir}`);
+  }
+
   // Update config with correct paths and any existing running VMs
   // Don't require vm-tracker here to avoid circular dependency
   try {
