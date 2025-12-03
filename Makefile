@@ -1,25 +1,52 @@
-.PHONY: start stop check-deps setup-venv setup-dirs
+.PHONY: start stop check-deps setup-venv setup-dirs setup-nodejs setup-novnc detect-os
 
 # Get the absolute path of the repo root
 REPO_ROOT := $(shell pwd)
 VENV := $(REPO_ROOT)/venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
+WEB_UI_DIR := $(REPO_ROOT)/web-ui
+NODE := node
+NPM := npm
 
-start: check-deps setup-venv setup-dirs
-	@echo "Starting VM Manager..."
-	@$(PYTHON) -u $(REPO_ROOT)/app.py
+# Detect OS and Architecture
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+detect-os:
+	@echo "Detected OS: $(UNAME_S)"
+	@echo "Detected Architecture: $(UNAME_M)"
+
+start: check-deps setup-venv setup-dirs setup-nodejs
+	@echo "Starting VM Manager Web UI..."
+	@cd $(WEB_UI_DIR) && ./start-server.sh
 
 stop:
 	@echo "Stopping VM Manager..."
-	@pkill -f "app.py" || true
+	@pkill -f "node.*server.js" || pkill -f "web-ui/server.js" || true
 	@echo "VM Manager stopped"
 
-check-deps:
+check-deps: detect-os
 	@echo "Checking dependencies..."
+	@if [ "$(UNAME_S)" = "Darwin" ]; then \
+		$(MAKE) check-deps-macos; \
+	elif [ "$(UNAME_S)" = "Linux" ]; then \
+		$(MAKE) check-deps-linux; \
+	else \
+		echo "Unsupported OS: $(UNAME_S)"; \
+		exit 1; \
+	fi
+
+check-deps-macos:
+	@echo "Checking macOS dependencies..."
 	@if ! command -v brew >/dev/null 2>&1; then \
 		echo "Homebrew not found. Installing Homebrew..."; \
 		/bin/bash -c "$$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"; \
+	fi
+	@echo "Checking for node..."
+	@if ! command -v node >/dev/null 2>&1; then \
+		echo "Node.js not found. Installing Node.js..."; \
+		brew install node; \
 	fi
 	@echo "Checking for qemu..."
 	@brew list qemu >/dev/null 2>&1 || brew install qemu
@@ -27,7 +54,127 @@ check-deps:
 	@brew list wimlib >/dev/null 2>&1 || brew install wimlib
 	@echo "Checking for cdrtools..."
 	@brew list cdrtools >/dev/null 2>&1 || brew install cdrtools
-	@echo "All dependencies installed"
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
+	@echo "Checking for nginx..."
+	@if ! command -v nginx >/dev/null 2>&1; then \
+		echo "nginx not found. Installing nginx..."; \
+		brew install nginx; \
+	fi
+	@echo "All macOS dependencies installed"
+
+check-deps-linux:
+	@echo "Checking Linux dependencies..."
+	@if command -v apt-get >/dev/null 2>&1; then \
+		$(MAKE) check-deps-apt; \
+	elif command -v dnf >/dev/null 2>&1; then \
+		$(MAKE) check-deps-dnf; \
+	elif command -v yum >/dev/null 2>&1; then \
+		$(MAKE) check-deps-yum; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		$(MAKE) check-deps-pacman; \
+	else \
+		echo "Unsupported Linux package manager. Please install qemu, wimlib, and cdrtools manually."; \
+		exit 1; \
+	fi
+
+check-deps-apt:
+	@echo "Using apt package manager (Debian/Ubuntu)..."
+	@sudo apt-get update -qq
+	@if [ "$(UNAME_M)" = "x86_64" ]; then \
+		echo "x86_64 detected - installing qemu-system-aarch64 for ARM64 emulation..."; \
+		dpkg -l | grep -q qemu-system-aarch64 || sudo apt-get install -y qemu-system-aarch64; \
+	elif [ "$(UNAME_M)" = "aarch64" ] || [ "$(UNAME_M)" = "arm64" ]; then \
+		echo "ARM64 detected - installing qemu-system-aarch64..."; \
+		dpkg -l | grep -q qemu-system-aarch64 || sudo apt-get install -y qemu-system-aarch64; \
+	else \
+		echo "Unknown architecture $(UNAME_M) - attempting to install qemu-system-aarch64..."; \
+		dpkg -l | grep -q qemu-system-aarch64 || sudo apt-get install -y qemu-system-aarch64; \
+	fi
+	@echo "Checking for wimlib..."
+	@dpkg -l | grep -q wimlib || sudo apt-get install -y wimlib-tools
+	@echo "Checking for genisoimage or mkisofs..."
+	@if ! command -v genisoimage >/dev/null 2>&1 && ! command -v mkisofs >/dev/null 2>&1; then \
+		sudo apt-get install -y genisoimage; \
+	fi
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
+	@echo "All apt dependencies installed"
+
+check-deps-dnf:
+	@echo "Using dnf package manager (Fedora/RHEL)..."
+	@if [ "$(UNAME_M)" = "x86_64" ]; then \
+		echo "x86_64 detected - installing qemu-system-aarch64 for ARM64 emulation..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo dnf install -y qemu-system-aarch64; \
+	elif [ "$(UNAME_M)" = "aarch64" ] || [ "$(UNAME_M)" = "arm64" ]; then \
+		echo "ARM64 detected - installing qemu-system-aarch64..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo dnf install -y qemu-system-aarch64; \
+	else \
+		echo "Unknown architecture $(UNAME_M) - attempting to install qemu-system-aarch64..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo dnf install -y qemu-system-aarch64; \
+	fi
+	@echo "Checking for wimlib..."
+	@rpm -q wimlib >/dev/null 2>&1 || sudo dnf install -y wimlib
+	@echo "Checking for genisoimage..."
+	@rpm -q genisoimage >/dev/null 2>&1 || sudo dnf install -y genisoimage
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
+	@echo "All dnf dependencies installed"
+
+check-deps-yum:
+	@echo "Using yum package manager (RHEL/CentOS)..."
+	@if [ "$(UNAME_M)" = "x86_64" ]; then \
+		echo "x86_64 detected - installing qemu-system-aarch64 for ARM64 emulation..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo yum install -y qemu-system-aarch64; \
+	elif [ "$(UNAME_M)" = "aarch64" ] || [ "$(UNAME_M)" = "arm64" ]; then \
+		echo "ARM64 detected - installing qemu-system-aarch64..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo yum install -y qemu-system-aarch64; \
+	else \
+		echo "Unknown architecture $(UNAME_M) - attempting to install qemu-system-aarch64..."; \
+		rpm -q qemu-system-aarch64 >/dev/null 2>&1 || sudo yum install -y qemu-system-aarch64; \
+	fi
+	@echo "Checking for wimlib..."
+	@rpm -q wimlib >/dev/null 2>&1 || sudo yum install -y wimlib
+	@echo "Checking for genisoimage..."
+	@rpm -q genisoimage >/dev/null 2>&1 || sudo yum install -y genisoimage
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
+	@echo "All yum dependencies installed"
+
+check-deps-pacman:
+	@echo "Using pacman package manager (Arch Linux)..."
+	@if [ "$(UNAME_M)" = "x86_64" ]; then \
+		echo "x86_64 detected - installing qemu-system-aarch64 for ARM64 emulation..."; \
+		pacman -Q qemu-system-aarch64 >/dev/null 2>&1 || sudo pacman -S --noconfirm qemu-system-aarch64; \
+	elif [ "$(UNAME_M)" = "aarch64" ] || [ "$(UNAME_M)" = "arm64" ]; then \
+		echo "ARM64 detected - installing qemu-system-aarch64..."; \
+		pacman -Q qemu-system-aarch64 >/dev/null 2>&1 || sudo pacman -S --noconfirm qemu-system-aarch64; \
+	else \
+		echo "Unknown architecture $(UNAME_M) - attempting to install qemu-system-aarch64..."; \
+		pacman -Q qemu-system-aarch64 >/dev/null 2>&1 || sudo pacman -S --noconfirm qemu-system-aarch64; \
+	fi
+	@echo "Checking for wimlib..."
+	@pacman -Q wimlib >/dev/null 2>&1 || sudo pacman -S --noconfirm wimlib
+	@echo "Checking for cdrtools..."
+	@pacman -Q cdrtools >/dev/null 2>&1 || sudo pacman -S --noconfirm cdrtools
+	@echo "Checking for websockify..."
+	@if ! command -v websockify >/dev/null 2>&1; then \
+		echo "Installing websockify via pip..."; \
+		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
+	fi
+	@echo "All pacman dependencies installed"
 
 setup-venv:
 	@echo "Setting up Python virtual environment..."
@@ -45,5 +192,38 @@ setup-dirs:
 		cp $(REPO_ROOT)/autounattend.xml $(REPO_ROOT)/vms/shared/autounattend.xml; \
 		echo "Copied autounattend.xml to vms/shared/"; \
 	fi
+	@$(MAKE) setup-novnc
 	@echo "Directory structure ready"
+
+setup-novnc:
+	@echo "Setting up noVNC library..."
+	@NOVNC_DIR="$(REPO_ROOT)/novnc"; \
+	if [ ! -f "$$NOVNC_DIR/vnc.html" ]; then \
+		echo "Downloading noVNC v1.4.0 (full release for websockify --web)..."; \
+		if ! command -v curl >/dev/null 2>&1; then \
+			echo "ERROR: curl is required to download noVNC. Please install curl."; \
+			exit 1; \
+		fi; \
+		if ! command -v unzip >/dev/null 2>&1; then \
+			echo "ERROR: unzip is required to extract noVNC. Please install unzip."; \
+			exit 1; \
+		fi; \
+		TMP_DIR=$$(mktemp -d) && \
+		cd $$TMP_DIR && \
+		curl -L -s "https://github.com/novnc/noVNC/archive/refs/tags/v1.4.0.zip" -o novnc.zip && \
+		unzip -q novnc.zip && \
+		mkdir -p "$$NOVNC_DIR" && \
+		cp -r noVNC-1.4.0/* "$$NOVNC_DIR/" && \
+		cd - && \
+		rm -rf $$TMP_DIR && \
+		echo "noVNC library installed successfully at $$NOVNC_DIR"; \
+		echo "  (This will be used by websockify --web flag, like vapiorc)"; \
+	else \
+		echo "noVNC library already installed"; \
+	fi
+
+setup-nodejs:
+	@echo "Setting up Node.js dependencies..."
+	@cd $(WEB_UI_DIR) && $(NPM) install
+	@echo "Node.js setup complete"
 

@@ -1,6 +1,8 @@
 """VM Operations module for QEMU operations and ISO preparation."""
 
 import os
+import sys
+import platform
 import subprocess
 import shutil
 import tempfile
@@ -69,17 +71,44 @@ class VMOperations:
         disk_image = vm_dir / "windows.img"
         
         if disk_image.exists():
+            print("Disk already exists, skipping creation", flush=True)
             return True  # Disk already exists
         
         try:
-            subprocess.run(
+            print(f"Creating disk image: {disk_image} ({size_gb}GB)", flush=True)
+            result = subprocess.run(
                 ["qemu-img", "create", "-f", "qcow2", str(disk_image), f"{size_gb}G"],
                 check=True,
-                capture_output=True
+                capture_output=True,
+                text=True
             )
+            print(f"✓ Disk image created successfully", flush=True)
+            if result.stdout:
+                print(f"qemu-img output: {result.stdout}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"Error creating disk image: {e}")
+            error_msg = f"Error creating disk image: {e}"
+            if e.stdout:
+                error_msg += f"\nstdout: {e.stdout}"
+            if e.stderr:
+                error_msg += f"\nstderr: {e.stderr}"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            return False
+        except FileNotFoundError:
+            error_msg = "qemu-img not found. Please install QEMU (brew install qemu)"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            return False
+        except Exception as e:
+            error_msg = f"Unexpected error creating disk image: {e}"
+            print(error_msg, flush=True)
+            import sys
+            print(error_msg, file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
             return False
     
     def download_windows_iso(self, progress_callback: Optional[Callable[[int, int], None]] = None) -> bool:
@@ -182,107 +211,108 @@ class VMOperations:
         vm_temp_dir.mkdir(parents=True, exist_ok=True)
         iso_extracted.mkdir(exist_ok=True)
         drivers_temp.mkdir(exist_ok=True)
-        print(f"Using temp directory: {vm_temp_dir}")
-        print(f"ISO extracted will be at: {iso_extracted}")
-        print(f"Drivers temp will be at: {drivers_temp}")
+        print(f"Using temp directory: {vm_temp_dir}", flush=True)
+        print(f"ISO extracted will be at: {iso_extracted}", flush=True)
+        print(f"Drivers temp will be at: {drivers_temp}", flush=True)
         
         try:
             # Step 1: Extract ISO
             if progress_callback:
                 progress_callback("Extracting ISO...")
-            print("Step 1: Extracting ISO...")
+            print("Step 1: Extracting ISO...", flush=True)
             if not self._extract_iso(iso_path, iso_extracted):
                 error_msg = "Failed to extract ISO"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ ISO extracted successfully")
+            print("✓ ISO extracted successfully", flush=True)
             
             # Step 2: Download and extract VirtIO drivers
             if progress_callback:
                 progress_callback("Downloading VirtIO drivers...")
-            print("Step 2: Downloading and extracting VirtIO drivers...")
+            print("Step 2: Downloading and extracting VirtIO drivers...", flush=True)
+            print(f"DEBUG: Checking if sudo password is set: {self.sudo_password is not None}", flush=True)
             if not self._download_and_extract_drivers(drivers_temp, vm_temp_dir):
                 error_msg = "Failed to download/extract VirtIO drivers"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ VirtIO drivers downloaded and extracted")
+            print("✓ VirtIO drivers downloaded and extracted", flush=True)
             
             # Step 3: Prepare WinPE drivers
             if progress_callback:
                 progress_callback("Preparing drivers...")
-            print("Step 3: Preparing WinPE drivers...")
+            print("Step 3: Preparing WinPE drivers...", flush=True)
             winpe_drivers = self._prepare_winpe_drivers(drivers_temp)
             if not winpe_drivers:
                 error_msg = "Failed to prepare WinPE drivers"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print(f"✓ WinPE drivers prepared at {winpe_drivers}")
+            print(f"✓ WinPE drivers prepared at {winpe_drivers}", flush=True)
             
             # Step 4: Inject drivers into boot.wim
             if progress_callback:
                 progress_callback("Injecting drivers into boot.wim...")
-            print("Step 4: Injecting drivers into boot.wim...")
+            print("Step 4: Injecting drivers into boot.wim...", flush=True)
             if not self._inject_drivers_into_boot_wim(iso_extracted, winpe_drivers, drivers_temp):
                 error_msg = "Failed to inject drivers into boot.wim"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers injected into boot.wim")
+            print("✓ Drivers injected into boot.wim", flush=True)
             
             # Step 5: Copy drivers to $WinPEDriver$ (at root of ISO for disk detection)
             if progress_callback:
                 progress_callback("Copying drivers to WinPE directory...")
-            print("Step 5: Copying drivers to $WinPEDriver$ directory...")
+            print("Step 5: Copying drivers to $WinPEDriver$ directory...", flush=True)
             if not self._copy_drivers_to_winpe_root(iso_extracted, winpe_drivers, drivers_temp):
                 error_msg = "Failed to copy drivers to $WinPEDriver$ directory"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers copied to $WinPEDriver$ directory")
+            print("✓ Drivers copied to $WinPEDriver$ directory", flush=True)
             
             # Step 6: Copy drivers to $OEM$/$$/Drivers (for installation phase)
             if progress_callback:
                 progress_callback("Copying drivers to OEM directory...")
-            print("Step 6: Copying drivers to OEM directory...")
+            print("Step 6: Copying drivers to OEM directory...", flush=True)
             if not self._copy_drivers_to_oem(iso_extracted, winpe_drivers, drivers_temp):
                 error_msg = "Failed to copy drivers to OEM directory"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers copied to OEM directory")
+            print("✓ Drivers copied to OEM directory", flush=True)
             
             # Step 7: Inject autounattend.xml
             if progress_callback:
                 progress_callback("Injecting autounattend.xml...")
-            print("Step 7: Injecting autounattend.xml...")
+            print("Step 7: Injecting autounattend.xml...", flush=True)
             if not self._inject_autounattend(iso_extracted, autounattend_path):
                 error_msg = "Failed to inject autounattend.xml"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ autounattend.xml injected")
+            print("✓ autounattend.xml injected", flush=True)
             
             # Step 8: Rebuild ISO
             if progress_callback:
                 progress_callback("Rebuilding ISO...")
-            print("Step 8: Rebuilding ISO...")
+            print("Step 8: Rebuilding ISO...", flush=True)
             if not self._rebuild_iso(iso_extracted, modified_iso):
                 error_msg = "Failed to rebuild ISO"
-                print(f"ERROR: {error_msg}")
+                print(f"ERROR: {error_msg}", flush=True)
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print(f"✓ Modified ISO created: {modified_iso}")
+            print(f"✓ Modified ISO created: {modified_iso}", flush=True)
             
             # Clean up temp directory after successful ISO creation
             # Use sudo since some files were created with sudo (e.g., $OEM$ directories)
@@ -310,13 +340,13 @@ class VMOperations:
             
         except Exception as e:
             error_msg = f"Error preparing ISO: {e}"
-            print(error_msg)
+            print(error_msg, flush=True)
             import traceback
             traceback.print_exc()
             if progress_callback:
                 progress_callback(f"ERROR: {error_msg}")
             # Keep temp directory on error for debugging
-            print(f"Temp directory kept for debugging: {vm_temp_dir}")
+            print(f"Temp directory kept for debugging: {vm_temp_dir}", flush=True)
             return False
     
     def _extract_iso(self, iso_path: Path, extract_dir: Path) -> bool:
@@ -698,17 +728,19 @@ class VMOperations:
                             text=True,
                             check=True
                         )
-                        print("✓ Drivers injected into index 1 (with sudo)")
+                        print("✓ Drivers injected into index 1 (with sudo)", flush=True)
                     elif result.returncode != 0:
                         # Other error - raise it
+                        print(f"ERROR: Failed to inject drivers into index 1: {result.stderr}", flush=True)
                         result.check_returncode()
                     else:
-                        print("✓ Drivers injected into index 1")
+                        print("✓ Drivers injected into index 1", flush=True)
                 
                 # Inject into index 2 (Windows Setup) if it exists (as per guide)
                 # Note: Guide shows index 2 DOES use sudo (line 180)
                 if has_index_2:
-                    print("Injecting drivers into boot.wim index 2 (Windows Setup)...")
+                    print("Injecting drivers into boot.wim index 2 (Windows Setup)...", flush=True)
+                    print(f"DEBUG: Using sudo for index 2, password set: {self.sudo_password is not None}", flush=True)
                     # Delete existing (ignore errors) - USE sudo for index 2
                     self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "2",
@@ -726,10 +758,11 @@ class VMOperations:
                         text=True,
                         check=True
                     )
-                    print("✓ Drivers injected into index 2")
+                    print("✓ Drivers injected into index 2", flush=True)
                 elif not has_index_1:
                     # If index 2 doesn't exist, use index 1 with sudo (as per guide line 184-185)
-                    print("Only one image found, injecting into index 1 with sudo...")
+                    print("Only one image found, injecting into index 1 with sudo...", flush=True)
+                    print(f"DEBUG: Using sudo for index 1, password set: {self.sudo_password is not None}", flush=True)
                     self._run_command(
                         ["wimlib-imagex", "update", "boot.wim", "1",
                          "--command", "delete --force --recursive /\\$WinPEDriver\\$"],
@@ -745,10 +778,10 @@ class VMOperations:
                         text=True,
                         check=True
                     )
-                    print("✓ Drivers injected into index 1 (with sudo)")
+                    print("✓ Drivers injected into index 1 (with sudo)", flush=True)
                 else:
                     # If index 2 doesn't exist and index 1 doesn't exist, error
-                    print("ERROR: No valid image indices found in boot.wim")
+                    print("ERROR: No valid image indices found in boot.wim", flush=True)
                     return False
                 
                 return True
@@ -756,12 +789,12 @@ class VMOperations:
                 os.chdir(original_cwd)
                 
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: wimlib-imagex command failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
+            print(f"ERROR: wimlib-imagex command failed: {e}", flush=True)
+            print(f"stdout: {e.stdout}", flush=True)
+            print(f"stderr: {e.stderr}", flush=True)
             return False
         except Exception as e:
-            print(f"ERROR injecting drivers: {e}")
+            print(f"ERROR injecting drivers: {e}", flush=True)
             import traceback
             traceback.print_exc()
             return False
@@ -773,7 +806,8 @@ class VMOperations:
         winpe_root_dir = iso_extracted / "$WinPEDriver$"
         
         try:
-            print(f"Creating $WinPEDriver$ directory at root: {winpe_root_dir}")
+            print(f"Creating $WinPEDriver$ directory at root: {winpe_root_dir}", flush=True)
+            print(f"DEBUG: Using sudo for mkdir, password set: {self.sudo_password is not None}", flush=True)
             self._run_command(
                 ["mkdir", "-p", str(winpe_root_dir)],
                 use_sudo=True,
@@ -788,7 +822,8 @@ class VMOperations:
                 f"cp -R {shlex.quote(str(drivers_source_absolute))}/* "
                 f"{shlex.quote(str(winpe_root_dir))}/"
             )
-            print(f"Copying drivers from {drivers_source_absolute} to {winpe_root_dir}")
+            print(f"Copying drivers from {drivers_source_absolute} to {winpe_root_dir}", flush=True)
+            print(f"DEBUG: Using sudo for cp, password set: {self.sudo_password is not None}", flush=True)
             self._run_command(
                 ["/bin/sh", "-c", copy_cmd],
                 use_sudo=True,
@@ -799,20 +834,20 @@ class VMOperations:
             
             # Verify drivers were copied
             if not any(winpe_root_dir.iterdir()):
-                print("ERROR: No drivers found in $WinPEDriver$ directory after copy")
+                print("ERROR: No drivers found in $WinPEDriver$ directory after copy", flush=True)
                 return False
             
             driver_count = len(list(winpe_root_dir.iterdir()))
-            print(f"✓ Drivers copied to $WinPEDriver$ directory ({driver_count} items)")
-            print(f"$WinPEDriver$ directory contents: {[d.name for d in winpe_root_dir.iterdir()]}")
+            print(f"✓ Drivers copied to $WinPEDriver$ directory ({driver_count} items)", flush=True)
+            print(f"$WinPEDriver$ directory contents: {[d.name for d in winpe_root_dir.iterdir()]}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"ERROR copying drivers to $WinPEDriver$: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
+            print(f"ERROR copying drivers to $WinPEDriver$: {e}", flush=True)
+            print(f"stdout: {e.stdout}", flush=True)
+            print(f"stderr: {e.stderr}", flush=True)
             return False
         except Exception as e:
-            print(f"ERROR copying drivers to $WinPEDriver$: {e}")
+            print(f"ERROR copying drivers to $WinPEDriver$: {e}", flush=True)
             import traceback
             traceback.print_exc()
             return False
@@ -836,7 +871,8 @@ class VMOperations:
             oem_dir_relative = "../$OEM$/$$/Drivers"
             oem_dir_absolute = iso_extracted / "$OEM$" / "$$" / "Drivers"
             
-            print(f"Creating OEM directory: {oem_dir_absolute}")
+            print(f"Creating OEM directory: {oem_dir_absolute}", flush=True)
+            print(f"DEBUG: Using sudo for mkdir, password set: {self.sudo_password is not None}", flush=True)
             self._run_command(
                 ["mkdir", "-p", str(oem_dir_absolute)],
                 use_sudo=True,
@@ -851,7 +887,8 @@ class VMOperations:
                 f"cp -R {shlex.quote(str(drivers_source_absolute))}/* "
                 f"{shlex.quote(str(oem_dir_absolute))}/"
             )
-            print(f"Copying drivers from {drivers_source_absolute} to {oem_dir_absolute}")
+            print(f"Copying drivers from {drivers_source_absolute} to {oem_dir_absolute}", flush=True)
+            print(f"DEBUG: Using sudo for cp, password set: {self.sudo_password is not None}", flush=True)
             self._run_command(
                 ["/bin/sh", "-c", copy_cmd],
                 use_sudo=True,
@@ -862,20 +899,20 @@ class VMOperations:
             
             # Verify drivers were copied (as per guide: ls -la '$OEM$'/'$$'/Drivers/)
             if not any(oem_dir_absolute.iterdir()):
-                print("ERROR: No drivers found in OEM directory after copy")
+                print("ERROR: No drivers found in OEM directory after copy", flush=True)
                 return False
             
             driver_count = len(list(oem_dir_absolute.iterdir()))
-            print(f"✓ Drivers copied to OEM directory ({driver_count} items)")
-            print(f"OEM directory contents: {[d.name for d in oem_dir_absolute.iterdir()]}")
+            print(f"✓ Drivers copied to OEM directory ({driver_count} items)", flush=True)
+            print(f"OEM directory contents: {[d.name for d in oem_dir_absolute.iterdir()]}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"ERROR copying drivers to OEM: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
+            print(f"ERROR copying drivers to OEM: {e}", flush=True)
+            print(f"stdout: {e.stdout}", flush=True)
+            print(f"stderr: {e.stderr}", flush=True)
             return False
         except Exception as e:
-            print(f"ERROR copying drivers to OEM: {e}")
+            print(f"ERROR copying drivers to OEM: {e}", flush=True)
             import traceback
             traceback.print_exc()
             return False
@@ -950,7 +987,8 @@ class VMOperations:
                 )
                 
                 # Inject autounattend.xml (as per guide - use absolute path)
-                print(f"Injecting autounattend.xml into boot.wim index {index}...")
+                print(f"Injecting autounattend.xml into boot.wim index {index}...", flush=True)
+                print(f"DEBUG: Using sudo for autounattend injection, password set: {self.sudo_password is not None}", flush=True)
                 result = self._run_command(
                     ["wimlib-imagex", "update", "boot.wim", index,
                      "--command", f"add {autounattend_path} /autounattend.xml"],
@@ -959,7 +997,7 @@ class VMOperations:
                     text=True,
                     check=True
                 )
-                print("✓ Successfully added autounattend.xml")
+                print("✓ Successfully added autounattend.xml", flush=True)
                 
                 # Also inject as autounattend.dat (as per guide)
                 self._run_command(
@@ -1033,7 +1071,8 @@ class VMOperations:
                 str(iso_extracted)
             ]
             
-            print(f"Running: sudo {' '.join(cmd)}")
+            print(f"Running: sudo {' '.join(cmd)}", flush=True)
+            print(f"DEBUG: Using sudo for mkisofs, password set: {self.sudo_password is not None}", flush=True)
             result = self._run_command(
                 cmd,
                 use_sudo=True,
@@ -1043,24 +1082,24 @@ class VMOperations:
             )
             
             if not output_iso.exists():
-                print(f"ERROR: Output ISO was not created at {output_iso}")
+                print(f"ERROR: Output ISO was not created at {output_iso}", flush=True)
                 return False
             
             # Check file size (should be substantial)
             iso_size = output_iso.stat().st_size
             if iso_size < 1000000:  # Less than 1MB is suspicious
-                print(f"ERROR: Output ISO is suspiciously small: {iso_size} bytes")
+                print(f"ERROR: Output ISO is suspiciously small: {iso_size} bytes", flush=True)
                 return False
             
-            print(f"✓ ISO rebuilt successfully ({iso_size / (1024*1024*1024):.2f} GB)")
+            print(f"✓ ISO rebuilt successfully ({iso_size / (1024*1024*1024):.2f} GB)", flush=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"ERROR: mkisofs command failed: {e}")
-            print(f"stdout: {e.stdout}")
-            print(f"stderr: {e.stderr}")
+            print(f"ERROR: mkisofs command failed: {e}", flush=True)
+            print(f"stdout: {e.stdout}", flush=True)
+            print(f"stderr: {e.stderr}", flush=True)
             return False
         except Exception as e:
-            print(f"ERROR rebuilding ISO: {e}")
+            print(f"ERROR rebuilding ISO: {e}", flush=True)
             import traceback
             traceback.print_exc()
             return False
@@ -1075,15 +1114,30 @@ class VMOperations:
             print(f"Disk image not found for {vm_name}")
             return False
         
-        if not modified_iso.exists():
-            print(f"Modified ISO not found for {vm_name}")
+        # ISO is optional - only needed for initial installation
+        # After Windows is installed, we boot from disk only
+        attach_iso = modified_iso.exists()
+        if not attach_iso:
+            print(f"Modified ISO not found for {vm_name}, booting from disk only (assuming Windows is installed)")
+        
+        # Find OVMF firmware - paths differ by OS
+        system = platform.system()
+        if system == "Darwin":  # macOS
+            ovmf_paths = [
+                "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
+                "/usr/local/share/qemu/edk2-aarch64-code.fd"
+            ]
+        elif system == "Linux":
+            ovmf_paths = [
+                "/usr/share/qemu/edk2-aarch64-code.fd",
+                "/usr/share/OVMF/edk2-aarch64-code.fd",
+                "/usr/lib/qemu/edk2-aarch64-code.fd",
+                "/usr/local/share/qemu/edk2-aarch64-code.fd"
+            ]
+        else:
+            print(f"Unsupported OS: {system}")
             return False
         
-        # Find OVMF firmware
-        ovmf_paths = [
-            "/opt/homebrew/share/qemu/edk2-aarch64-code.fd",
-            "/usr/local/share/qemu/edk2-aarch64-code.fd"
-        ]
         ovmf = None
         for path in ovmf_paths:
             if Path(path).exists():
@@ -1091,14 +1145,56 @@ class VMOperations:
                 break
         
         if not ovmf:
-            print("OVMF firmware not found")
+            print(f"OVMF firmware not found. Searched in: {ovmf_paths}")
+            print("Please install OVMF firmware for your system:")
+            if system == "Darwin":
+                print("  brew install qemu")
+            elif system == "Linux":
+                print("  sudo apt-get install qemu-efi-aarch64  # Debian/Ubuntu")
+                print("  sudo dnf install edk2-aarch64          # Fedora/RHEL")
             return False
         
         try:
-            # Build QEMU command
+            # Determine acceleration and QEMU binary based on OS and architecture
+            system = platform.system()
+            machine = platform.machine()
+            
+            # Determine QEMU binary name
+            if system == "Darwin":  # macOS
+                qemu_binary = "qemu-system-aarch64"
+                accel = "hvf"
+            elif system == "Linux":
+                # On Linux, check architecture
+                if machine in ("x86_64", "amd64"):
+                    # x86_64: use qemu-system-aarch64 for cross-architecture emulation
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"  # KVM can emulate ARM64 on x86_64
+                elif machine in ("aarch64", "arm64"):
+                    # ARM64: native execution
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"  # Use KVM for native ARM64
+                else:
+                    # Unknown architecture, try default
+                    qemu_binary = "qemu-system-aarch64"
+                    accel = "kvm"
+            else:
+                qemu_binary = "qemu-system-aarch64"
+                accel = "tcg"  # Fallback for other systems
+            
+            # Create QGA and QMP socket directories
+            vm_dir = self.vms_dir / vm_name
+            qga_socket_dir = vm_dir / "qga"
+            qmp_socket_dir = vm_dir / "qmp"
+            qga_socket_dir.mkdir(exist_ok=True)
+            qmp_socket_dir.mkdir(exist_ok=True)
+            
+            qga_socket = qga_socket_dir / "qga.sock"
+            qmp_socket = qmp_socket_dir / "qmp.sock"
+            
+            # Build QEMU command - matches setup guide exactly
             cmd = [
-                "qemu-system-aarch64",
-                "-accel", "hvf",
+                qemu_binary,
+                "-accel", accel,
                 "-cpu", "max",
                 "-smp", str(config.cpu_cores),
                 "-m", f"{config.ram_gb}G",
@@ -1106,9 +1202,19 @@ class VMOperations:
                 "-drive", f"file={disk_image},format=qcow2,if=none,id=data3,cache=writeback,aio=threads,discard=on",
                 "-device", "virtio-scsi-pci,id=data3b,bus=pcie.0,addr=0xa,iothread=io2",
                 "-device", "scsi-hd,drive=data3,bus=data3b.0,channel=0,scsi-id=0,lun=0,rotation_rate=1,bootindex=1",
-                "-drive", f"file={modified_iso},format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom",
-                "-device", "qemu-xhci,id=xhci,p2=7,p3=7",
-                "-device", "usb-storage,drive=cdrom0,removable=on,bootindex=2",
+            ]
+            
+            # Only attach ISO if it exists (for initial installation)
+            # After Windows is installed, boot from disk only
+            if attach_iso:
+                cmd.extend([
+                    "-drive", f"file={modified_iso},format=raw,if=none,id=cdrom0,cache=unsafe,readonly=on,media=cdrom",
+                    "-device", "qemu-xhci,id=xhci,p2=7,p3=7",
+                    "-device", "usb-storage,drive=cdrom0,removable=on,bootindex=2",
+                ])
+            
+            # Continue with remaining devices - matches setup guide
+            cmd.extend([
                 "-device", "usb-tablet",
                 "-device", "usb-kbd",
                 "-netdev", "user,id=hostnet0",
@@ -1120,8 +1226,17 @@ class VMOperations:
                 "-bios", ovmf,
                 "-rtc", "base=localtime",
                 "-display", "vnc=:0",
-                "-vnc", "127.0.0.1:0"
-            ]
+                "-vnc", "127.0.0.1:0",
+                # QEMU Guest Agent (QGA) configuration
+                "-chardev", f"socket,path={qga_socket},server=on,wait=off,id=qga0",
+                "-device", "virtio-serial-pci,id=virtio-serial0",
+                "-device", "virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
+                # QEMU Machine Protocol (QMP) for VM management
+                "-qmp", f"unix:{qmp_socket},server=on,wait=off"
+            ])
+            
+            # On Linux, if KVM is not available, QEMU will automatically fall back to TCG
+            # We can try to detect this, but it's better to let QEMU handle it
             
             # Start QEMU in background
             subprocess.Popen(
@@ -1157,9 +1272,244 @@ class VMOperations:
                 for pid in pids:
                     if pid:
                         subprocess.run(["kill", pid], capture_output=True)
-                return True
-            return False
+            
+            # Also stop websockify proxy if running
+            self.stop_websockify(vm_name)
+            
+            return True
         except Exception as e:
             print(f"Error stopping VM: {e}")
             return False
+    
+    def start_websockify(self, vm_name: str, vnc_port: int = 5900, websocket_port: int = None) -> Optional[int]:
+        """Start websockify proxy for VNC to WebSocket conversion.
+        
+        Args:
+            vm_name: Name of the VM
+            vnc_port: VNC port (default 5900)
+            websocket_port: WebSocket port (defaults to 6080 + VM index)
+            
+        Returns:
+            WebSocket port number if successful, None otherwise
+        """
+        # Use dynamic port for websockify (6080 + hash of VM name)
+        # This allows multiple VMs to run simultaneously, each with its own websockify instance
+        # nginx will route to the correct websockify based on VM name
+        if websocket_port is None:
+            # Use hash of VM name to get a consistent port per VM (6080-7079 range)
+            port_hash = abs(hash(vm_name)) % 1000
+            websocket_port = 6080 + port_hash
+        
+        try:
+            # Check if websockify is installed - try multiple methods
+            websockify_path = None
+            
+            # First, try shutil.which which checks PATH
+            websockify_path = shutil.which("websockify")
+            
+            # If not found, try checking in common pip installation locations
+            if not websockify_path:
+                # Check in virtual environment if we're in one
+                venv_bin = Path(sys.executable).parent / "websockify"
+                if venv_bin.exists():
+                    websockify_path = str(venv_bin)
+                else:
+                    # Try user's local bin (pip install --user)
+                    user_bin = Path.home() / ".local" / "bin" / "websockify"
+                    if user_bin.exists():
+                        websockify_path = str(user_bin)
+                    else:
+                        # Try common macOS Homebrew pip location
+                        brew_bin = Path("/opt/homebrew/bin/websockify")
+                        if brew_bin.exists():
+                            websockify_path = str(brew_bin)
+            
+            if not websockify_path:
+                print("WARNING: websockify not found. Install with: pip install websockify")
+                print("Or on macOS: brew install websockify")
+                return None
+            
+            print(f"Found websockify at: {websockify_path}")
+            
+            # Check if websockify is already running on this port for this VM
+            result = subprocess.run(
+                ["pgrep", "-f", f"websockify.*{websocket_port}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                # Check if it's connected to the same VNC port (same VM)
+                existing_pids = result.stdout.strip().split('\n')
+                for pid in existing_pids:
+                    if pid:
+                        # Check what VNC port this websockify is connected to
+                        try:
+                            ps_result = subprocess.run(
+                                ["ps", "-p", pid, "-o", "args="],
+                                capture_output=True,
+                                text=True
+                            )
+                            if f"127.0.0.1:{vnc_port}" in ps_result.stdout:
+                                print(f"Websockify already running on port {websocket_port} for VNC {vnc_port} (VM {vm_name})")
+                                return websocket_port
+                        except:
+                            pass
+                
+                # Port conflict - another VM is using this port
+                # Try to find an available port nearby
+                print(f"WARNING: Port {websocket_port} is in use by another websockify instance")
+                print(f"Attempting to find an available port...")
+                
+                # Try ports in range 6080-7079
+                for attempt_port in range(6080, 7080):
+                    if attempt_port == websocket_port:
+                        continue
+                    try:
+                        import socket
+                        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        test_socket.settimeout(0.1)
+                        result = test_socket.connect_ex(('127.0.0.1', attempt_port))
+                        test_socket.close()
+                        if result != 0:
+                            # Port is available
+                            websocket_port = attempt_port
+                            print(f"Found available port: {websocket_port}")
+                            break
+                    except:
+                        continue
+                else:
+                    # No available port found
+                    print(f"ERROR: No available port found in range 6080-7079")
+                    return None
+            
+            # Start websockify WITHOUT --web flag
+            # nginx serves noVNC files and proxies WebSocket connections to websockify
+            # websockify only handles WebSocket to VNC TCP conversion
+            cmd = [
+                websockify_path,
+                str(websocket_port),
+                f"127.0.0.1:{vnc_port}"
+            ]
+            print(f"Starting websockify (WebSocket only, nginx serves noVNC files)", flush=True)
+            print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
+            print(f"noVNC will be served from nginx at http://localhost:8006/", flush=True)
+            print(f"Full command: {' '.join(cmd)}", flush=True)
+            
+            # Try to start websockify
+            # Log the command for debugging
+            print(f"Starting websockify with command: {' '.join(cmd)}", flush=True)
+            
+            # Check if port is already in use (by another process, not websockify)
+            try:
+                import socket
+                test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_socket.settimeout(1)
+                result = test_socket.connect_ex(('127.0.0.1', websocket_port))
+                test_socket.close()
+                if result == 0:
+                    # Port is in use by something else
+                    print(f"ERROR: Port {websocket_port} is already in use by another process", flush=True)
+                    return None
+            except Exception as e:
+                print(f"Warning: Could not check if port {websocket_port} is available: {e}", flush=True)
+            
+            # Start websockify - use DEVNULL to avoid blocking, but log startup
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            # Wait a moment to check if it started successfully
+            import time
+            time.sleep(1.5)  # Give it more time to start
+            
+            # Check if process is still running
+            if process.poll() is None:
+                # Verify port is actually listening
+                try:
+                    import socket
+                    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    test_socket.settimeout(1)
+                    result = test_socket.connect_ex(('127.0.0.1', websocket_port))
+                    test_socket.close()
+                    if result == 0:
+                        # Port is listening, success
+                        print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
+                        print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
+                        return websocket_port
+                    else:
+                        print(f"WARNING: Websockify process is running but port {websocket_port} is not listening", flush=True)
+                        return None
+                except Exception as e:
+                    print(f"Warning: Could not verify websockify port: {e}", flush=True)
+                    # Assume it's working if process is running
+                    return websocket_port
+            else:
+                # Process exited, check for errors
+                print(f"ERROR: Websockify process exited with code {process.returncode}", flush=True)
+                print(f"HINT: Check websockify installation: pip install websockify", flush=True)
+                return None
+                
+        except Exception as e:
+            print(f"Error starting websockify: {e}")
+            return None
+    
+    def stop_websockify(self, vm_name: str):
+        """Stop websockify proxy for a specific VM.
+        
+        Each VM has its own websockify instance on a unique port.
+        We find it by calculating the expected port for this VM.
+        """
+        try:
+            # Calculate the expected websockify port for this VM (same logic as start_websockify)
+            port_hash = abs(hash(vm_name)) % 1000
+            expected_port = 6080 + port_hash
+            vnc_port = 5900  # Default VNC port
+            
+            # Find websockify processes on the expected port for this VM
+            result = subprocess.run(
+                ["pgrep", "-f", f"websockify.*{expected_port}.*127.0.0.1:{vnc_port}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        try:
+                            # Verify this is the correct websockify for this VM
+                            ps_result = subprocess.run(
+                                ["ps", "-p", pid, "-o", "args="],
+                                capture_output=True,
+                                text=True
+                            )
+                            # Check both port and VNC connection match
+                            if str(expected_port) in ps_result.stdout and f"127.0.0.1:{vnc_port}" in ps_result.stdout:
+                                subprocess.run(["kill", pid], capture_output=True, timeout=5)
+                                print(f"Stopped websockify (PID {pid}) for VM {vm_name} on port {expected_port}")
+                                return
+                        except Exception as e:
+                            print(f"Error stopping websockify PID {pid}: {e}")
+            
+            # If not found by exact match, try finding by port only (fallback)
+            result = subprocess.run(
+                ["pgrep", "-f", f"websockify.*{expected_port}"],
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode == 0:
+                pids = result.stdout.strip().split('\n')
+                for pid in pids:
+                    if pid:
+                        try:
+                            subprocess.run(["kill", pid], capture_output=True, timeout=5)
+                            print(f"Stopped websockify (PID {pid}) for VM {vm_name} on port {expected_port} (fallback match)")
+                        except Exception as e:
+                            print(f"Error stopping websockify PID {pid}: {e}")
+        except Exception as e:
+            print(f"Error stopping websockify: {e}")
 
