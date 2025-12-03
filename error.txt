@@ -1,4 +1,18 @@
 
+Node.js setup complete
+Starting VM Manager Web UI...
+ISO preparation requires sudo access for operations like:
+  - Injecting drivers into boot.wim
+  - Copying drivers to OEM directories
+  - Rebuilding ISO with mkisofs
+
+Please enter your sudo password (it will be stored in memory only):
+
+Sudo password set. Starting server...
+Sudo password set (stored in memory)
+Sudo password initialized from environment variable
+VM Manager Web UI running on http://localhost:3000
+Open your browser to http://localhost:3000 to access the interface
 VM tracker cleaned up
 [VM Start test_full_novnc] VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
 
@@ -7,18 +21,12 @@ VM tracker cleaned up
 [VM Start test_full_novnc] Process exited with code 0
 [VM Start test_full_novnc] stdout: "VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
 SUCCESS"
-nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
-nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+Created nginx logs directory: /Users/caleb/code/cyderes/cyber_workbench/nginx/logs
+nginx started successfully on port 8006
+nginx is already running
+Failed to reload nginx after adding VM test_full_novnc: nginx reload failed: nginx: [error] invalid PID number "" in "/opt/homebrew/var/run/nginx.pid"
 
-[Websockify test_full_novnc] Failed to start nginx: nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
-nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+nginx is already running
+nginx is already running
+Failed to reload nginx after adding VM test_full_novnc: nginx reload failed: nginx: [error] invalid PID number "" in "/opt/homebrew/var/run/nginx.pid"
 
-nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
-nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
-
-Failed to start nginx when registering VM test_full_novnc: nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
-nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
