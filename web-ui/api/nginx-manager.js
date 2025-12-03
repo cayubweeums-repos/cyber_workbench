@@ -370,15 +370,32 @@ async function reloadNginx() {
   }
 
   return new Promise((resolve, reject) => {
-    const nginxDir = path.dirname(NGINX_CONFIG);
-    exec(`nginx -s reload -c ${NGINX_CONFIG} -p ${nginxDir}`, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(`nginx reload failed: ${stderr}`));
-      } else {
-        console.log('nginx reloaded');
-        resolve(true);
+    // Read PID from our custom PID file and send HUP signal
+    // This is more reliable than using -s reload with custom PID file location
+    if (!fs.existsSync(NGINX_PID_FILE)) {
+      reject(new Error(`nginx PID file not found: ${NGINX_PID_FILE}`));
+      return;
+    }
+
+    try {
+      const pid = fs.readFileSync(NGINX_PID_FILE, 'utf8').trim();
+      if (!pid || isNaN(parseInt(pid))) {
+        reject(new Error(`Invalid PID in file: ${NGINX_PID_FILE}`));
+        return;
       }
-    });
+
+      // Send HUP signal to reload nginx configuration
+      exec(`kill -HUP ${pid}`, (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(`nginx reload failed: ${stderr || error.message}`));
+        } else {
+          console.log('nginx reloaded');
+          resolve(true);
+        }
+      });
+    } catch (err) {
+      reject(new Error(`Failed to read nginx PID file: ${err.message}`));
+    }
   });
 }
 
