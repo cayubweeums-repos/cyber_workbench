@@ -4,6 +4,10 @@
 # Port 8006 matches vapiorc for consistency
 # This is a standalone config file used with nginx -c option
 
+events {
+    worker_connections 1024;
+}
+
 http {
     # Map to detect WebSocket upgrade requests
     map $http_upgrade $connection_upgrade {

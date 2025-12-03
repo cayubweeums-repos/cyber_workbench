@@ -78,7 +78,11 @@ function getTemplateConfig() {
       fs.writeFileSync(NGINX_CONFIG_TEMPLATE, currentConfig, 'utf8');
     } else {
       // Create minimal template
-      const minimalTemplate = `http {
+      const minimalTemplate = `events {
+    worker_connections 1024;
+}
+
+http {
     map $http_upgrade $connection_upgrade {
         default upgrade;
         '' close;
