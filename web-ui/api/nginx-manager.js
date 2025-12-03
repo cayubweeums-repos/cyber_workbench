@@ -11,7 +11,8 @@ const NGINX_CONFIG_TEMPLATE = path.join(__dirname, '..', '..', 'nginx', 'novnc.c
 const NGINX_PID_FILE = path.join(__dirname, '..', '..', 'nginx', 'nginx.pid');
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const NOVNC_DIR = path.join(REPO_ROOT, 'novnc');
-const vmTracker = require('./vm-tracker');
+// Don't require vm-tracker here to avoid circular dependency
+// It will be passed as a parameter when needed
 
 /**
  * Check if nginx is installed
@@ -82,7 +83,6 @@ function getTemplateConfig() {
         default upgrade;
         '' close;
     }
-    pid nginx.pid;
     server {
         listen 8006;
         server_name localhost;
@@ -112,7 +112,7 @@ function getTemplateConfig() {
  * Update nginx config with correct paths and VM routes
  * Uses a temporary file to avoid race conditions
  */
-async function updateNginxConfig() {
+async function updateNginxConfig(vmTracker = null) {
   // Get template
   let config = getTemplateConfig();
   
@@ -123,7 +123,19 @@ async function updateNginxConfig() {
   );
   
   // Get all running VMs and their websockify ports
-  const runningVMs = await vmTracker.getRunningVMs();
+  // vmTracker is passed as parameter to avoid circular dependency
+  let runningVMs = {};
+  if (vmTracker) {
+    runningVMs = await vmTracker.getRunningVMs();
+  } else {
+    // Fallback: try to require it dynamically if not passed
+    try {
+      const tracker = require('./vm-tracker');
+      runningVMs = await tracker.getRunningVMs();
+    } catch (e) {
+      console.warn('Could not get running VMs for nginx config:', e.message);
+    }
+  }
   
   // Generate location blocks for each VM's websockify
   // Format: /websockify/{vmname} -> proxies to websockify port
@@ -182,9 +194,9 @@ async function updateNginxConfig() {
  * Update nginx config for a specific VM (called when VM starts websockify)
  * This updates the config with all running VMs and reloads nginx
  */
-async function updateNginxConfigForVM(vmName, websockifyPort) {
+async function updateNginxConfigForVM(vmName, websockifyPort, vmTracker = null) {
   // Update config with all running VMs (including the newly registered one)
-  await updateNginxConfig();
+  await updateNginxConfig(vmTracker);
   
   // Reload nginx to apply changes
   if (await isNginxRunning()) {
@@ -221,8 +233,10 @@ async function startNginx() {
   }
 
   // Update config with correct paths and any existing running VMs
+  // Don't require vm-tracker here to avoid circular dependency
   try {
-    await updateNginxConfig();
+    const tracker = require('./vm-tracker');
+    await updateNginxConfig(tracker);
   } catch (error) {
     console.warn('Failed to update nginx config with VM routes:', error.message);
     // Fallback: just update the path placeholder
@@ -261,10 +275,12 @@ async function startNginx() {
         }
 
         // Start nginx in background
-        // nginx will create its own PID file based on the pid directive in config
+        // Use -g to set PID file location explicitly (relative to -p directory)
+        const pidFileRelative = path.relative(nginxDir, NGINX_PID_FILE);
         const nginx = spawn('nginx', [
           '-c', NGINX_CONFIG,
-          '-p', nginxDir
+          '-p', nginxDir,
+          '-g', `pid ${pidFileRelative};`
         ], {
           stdio: 'pipe',
           detached: true,

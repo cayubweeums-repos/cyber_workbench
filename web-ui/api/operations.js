@@ -718,7 +718,7 @@ else:
         
         // Update nginx config to include route for this VM
         try {
-          await nginxManager.updateNginxConfigForVM(vmName, websockifyPort);
+          await nginxManager.updateNginxConfigForVM(vmName, websockifyPort, vmTracker);
         } catch (error) {
           console.warn(`[Websockify ${vmName}] Failed to update nginx config: ${error.message}`);
         }

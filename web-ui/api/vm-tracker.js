@@ -93,7 +93,8 @@ async function unregisterVM(vmName) {
 
   // Update nginx config to remove this VM's route
   try {
-    await nginxManager.updateNginxConfig();
+    // Pass this module to avoid circular dependency
+    await nginxManager.updateNginxConfig(module.exports);
     if (await nginxManager.isNginxRunning()) {
       await nginxManager.reloadNginx();
     }

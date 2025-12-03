@@ -11,9 +11,6 @@ http {
         '' close;
     }
 
-    # PID file location (relative to nginx -p directory)
-    pid nginx.pid;
-
     server {
         listen 8006;
         server_name localhost;
