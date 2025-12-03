@@ -1,13 +1,13 @@
 /**
- * VM Tracker - Tracks running VMs and manages nginx lifecycle
- * Automatically stops nginx when the last VM stops
+ * VM Tracker - Tracks running VMs and their websockify ports
+ * Express handles noVNC serving and WebSocket proxying automatically
  */
 
 const { isVMRunning } = require('./python-bridge');
 const fs = require('fs');
 const path = require('path');
 
-const TRACKER_FILE = path.join(__dirname, '..', '..', 'nginx', 'vm-tracker.json');
+const TRACKER_FILE = path.join(__dirname, '..', '..', 'data', 'vm-tracker.json');
 
 /**
  * Get all running VMs

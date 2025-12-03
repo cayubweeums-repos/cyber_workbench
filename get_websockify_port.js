@@ -13,7 +13,7 @@ if (!vmName) {
   process.exit(1);
 }
 
-const trackerFile = path.join(__dirname, 'nginx', 'vm-tracker.json');
+const trackerFile = path.join(__dirname, 'data', 'vm-tracker.json');
 
 if (!fs.existsSync(trackerFile)) {
   console.error(`VM tracker file not found: ${trackerFile}`);

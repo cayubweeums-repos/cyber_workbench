@@ -1,6 +1,6 @@
 /**
- * VM Viewer - Handles VM viewing with noVNC via nginx
- * Uses nginx on port 8006 to serve noVNC files and proxy WebSocket connections
+ * VM Viewer - Handles VM viewing with noVNC via Express
+ * Express serves noVNC files and proxies WebSocket connections to websockify
  * Follows OOP and modular design
  */
 class VMViewer {
@@ -112,37 +112,6 @@ class VMViewer {
       clearInterval(this.progressInterval);
       this.progressInterval = null;
     }
-  }
-
-  async initNoVNC(expressPort) {
-    // Use exact same iframe setup as test-iframe.html (simple approach)
-    const iframe = document.getElementById('novnc-viewer');
-    
-    if (!iframe) {
-      console.error('noVNC viewer iframe not found');
-      return;
-    }
-
-    // Express serves noVNC at http://localhost:3000/novnc/vnc.html
-    // noVNC will connect to ws://localhost:3000/websockify/{vmName} which Express proxies to the VM's websockify port
-    const vmName = this.currentVMName;
-    
-    // Path parameter should be "websockify/{vmName}" without leading slash and without encoding
-    // This matches the working URL format: path=websockify/test_full_novnc
-    const websockifyPath = `websockify/${vmName}`;
-    
-    // noVNC URL format - exact same as test-iframe.html
-    const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true`;
-    
-    // Set iframe src - simple approach like test file (no delays, no complex setup)
-    iframe.src = novncUrl;
-    
-    // Log successful load (same as test file)
-    iframe.onload = () => {
-      console.log('Iframe loaded');
-      const rect = iframe.getBoundingClientRect();
-      console.log('Iframe dimensions:', rect.width, 'x', rect.height);
-    };
   }
 
   close() {

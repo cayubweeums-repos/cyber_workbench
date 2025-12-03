@@ -556,7 +556,7 @@ except Exception as e:
       }
       
       if (code === 0 && stdout.includes('SUCCESS')) {
-        // VM started successfully - nginx will be started when websockify is called
+        // VM started successfully - websockify will be started when viewer is accessed
         resolve(true);
       } else if (code === 0 && stdout.includes('FAILED')) {
         const errorMsg = stderr.trim() || stdout.trim() || 'VM start returned FAILED';
@@ -605,7 +605,7 @@ print('SUCCESS' if result else 'FAILED')
 
     proc.on('close', async (code) => {
       if (code === 0 && output.includes('SUCCESS')) {
-        // Unregister VM from tracker (will stop nginx if last VM)
+        // Unregister VM from tracker (Express handles cleanup automatically)
         try {
           await vmTracker.unregisterVM(vmName);
         } catch (error) {

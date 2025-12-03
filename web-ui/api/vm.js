@@ -225,7 +225,7 @@ async function stopVM(req, res) {
 }
 
 /**
- * Get viewer port for VM (nginx port 8006)
+ * Get viewer port for VM (Express port 3000)
  * Also returns websockify path for the VM
  */
 async function getViewerPort(req, res) {
@@ -237,7 +237,7 @@ async function getViewerPort(req, res) {
       return res.status(400).json({ success: false, error: 'VM is not running' });
     }
     
-    // Start websockify (which also ensures nginx is running and configured)
+    // Start websockify (Express handles noVNC serving and WebSocket proxying)
     await operations.startWebsockify(name);
     
     // Return Express port (3000) and websockify path

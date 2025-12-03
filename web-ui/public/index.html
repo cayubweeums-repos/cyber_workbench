@@ -149,9 +149,9 @@
         </div>
     </div>
 
-    <!-- noVNC is served by nginx on port 8006 (like vapiorc) -->
-    <!-- nginx serves noVNC files and proxies WebSocket connections to websockify -->
-    <!-- We use an iframe pointing to nginx -->
+    <!-- noVNC is served by Express on port 3000 -->
+    <!-- Express serves noVNC files and proxies WebSocket connections to websockify -->
+    <!-- We use a standalone viewer.html page that loads noVNC in an iframe -->
     <!-- Core -->
     <script src="js/core/APIClient.js"></script>
     <!-- Models -->
