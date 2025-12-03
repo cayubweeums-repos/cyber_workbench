@@ -1,25 +1,25 @@
-[noVNC] Starting to load from /js/novnc/core/rfb.js...
-deflate.js:1 Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.
-(index):180 [noVNC] Failed to load ES module: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/novnc/core/rfb.js
-(anonymous)	@	(index):180
-(index):181 [noVNC] Error name: TypeError
-(anonymous)	@	(index):181
-(index):182 [noVNC] Error message: Failed to fetch dynamically imported module: http://localhost:3000/js/novnc/core/rfb.js
-(anonymous)	@	(index):182
-(index):183 [noVNC] Error stack: TypeError: Failed to fetch dynamically imported module: http://localhost:3000/js/novnc/core/rfb.js
-(anonymous)	@	(index):183
-(index):185 [noVNC] This might be a path issue. Check that /js/novnc/core/rfb.js is accessible.
-(anonymous)	@	(index):185
-(index):186 [noVNC] Try accessing the file directly in your browser to verify it exists.
-(anonymous)	@	(index):186
-inflate.js:1 Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.
-zstream.js:1 Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "text/html". Strict MIME type checking is enforced for module scripts per HTML spec.
-viewer.js:134 Waiting for noVNC library to load...
-viewer.js:178 RFB is not defined after waiting. noVNC ES module may not have loaded: Error: Timeout waiting for noVNC library to load (10 seconds)
-    at viewer.js:139:18
-initNoVNC	@	viewer.js:178
-viewer.js:184 Available globals: 
-Array(0)
-initNoVNC	@	viewer.js:184
-viewer.js:185 Check browser console for ES module import errors
-initNoVNC	@	viewer.js:185
+
+Sudo password set. Starting server...
+Sudo password set (stored in memory)
+Sudo password initialized from environment variable
+VM Manager Web UI running on http://localhost:3000
+Open your browser to http://localhost:3000 to access the interface
+[VM Start test_full_novnc] VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
+
+[VM Start test_full_novnc] SUCCESS
+
+[VM Start test_full_novnc] Process exited with code 0
+[VM Start test_full_novnc] stdout: "VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
+SUCCESS"
+nginx config test failed: nginx: [emerg] "map" directive is not allowed here in /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf:6
+nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+
+[VM Start test_full_novnc] Failed to start nginx: nginx config test failed: nginx: [emerg] "map" directive is not allowed here in /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf:6
+nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+
+nginx config test failed: nginx: [emerg] "map" directive is not allowed here in /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf:6
+nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+
+[Websockify test_full_novnc] Failed to start nginx: nginx config test failed: nginx: [emerg] "map" directive is not allowed here in /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf:6
+nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
+
