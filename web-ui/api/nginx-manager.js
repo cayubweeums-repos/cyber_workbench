@@ -311,15 +311,24 @@ async function startNginx() {
         });
 
         // Wait a moment and check if nginx started successfully
-        setTimeout(() => {
-          isNginxRunning().then((running) => {
-            if (running) {
-              console.log('nginx started successfully on port 8006');
-              resolve(true);
-            } else {
-              reject(new Error(`nginx failed to start: ${errorOutput || 'Process exited immediately'}`));
+        setTimeout(async () => {
+          const running = await isNginxRunning();
+          if (running) {
+            // Ensure PID file exists - if nginx didn't create it, get PID from port and write it
+            if (!fs.existsSync(NGINX_PID_FILE)) {
+              try {
+                const pid = await getNginxPidFromPort();
+                fs.writeFileSync(NGINX_PID_FILE, pid, 'utf8');
+                console.log(`Created nginx PID file: ${NGINX_PID_FILE} with PID ${pid}`);
+              } catch (err) {
+                console.warn(`nginx is running but could not create PID file: ${err.message}`);
+              }
             }
-          });
+            console.log('nginx started successfully on port 8006');
+            resolve(true);
+          } else {
+            reject(new Error(`nginx failed to start: ${errorOutput || 'Process exited immediately'}`));
+          }
         }, 1500);
       });
     });
@@ -362,6 +371,22 @@ async function stopNginx() {
 }
 
 /**
+ * Get nginx PID from port 8006 (fallback when PID file doesn't exist)
+ */
+function getNginxPidFromPort() {
+  return new Promise((resolve, reject) => {
+    exec('lsof -ti:8006 2>/dev/null', (error, stdout) => {
+      if (error || !stdout.trim()) {
+        reject(new Error('nginx is not running on port 8006'));
+        return;
+      }
+      const pid = stdout.trim().split('\n')[0]; // Get first PID if multiple
+      resolve(pid);
+    });
+  });
+}
+
+/**
  * Reload nginx config
  */
 async function reloadNginx() {
@@ -369,33 +394,53 @@ async function reloadNginx() {
     return startNginx();
   }
 
-  return new Promise((resolve, reject) => {
-    // Read PID from our custom PID file and send HUP signal
-    // This is more reliable than using -s reload with custom PID file location
-    if (!fs.existsSync(NGINX_PID_FILE)) {
-      reject(new Error(`nginx PID file not found: ${NGINX_PID_FILE}`));
-      return;
-    }
+  return new Promise(async (resolve, reject) => {
+    let pid = null;
 
-    try {
-      const pid = fs.readFileSync(NGINX_PID_FILE, 'utf8').trim();
-      if (!pid || isNaN(parseInt(pid))) {
-        reject(new Error(`Invalid PID in file: ${NGINX_PID_FILE}`));
+    // Try to read PID from our custom PID file first
+    if (fs.existsSync(NGINX_PID_FILE)) {
+      try {
+        pid = fs.readFileSync(NGINX_PID_FILE, 'utf8').trim();
+        if (!pid || isNaN(parseInt(pid))) {
+          // Invalid PID in file, try getting from port
+          console.warn(`Invalid PID in file ${NGINX_PID_FILE}, getting PID from port 8006`);
+          try {
+            pid = await getNginxPidFromPort();
+          } catch (err) {
+            reject(new Error(`Failed to get nginx PID: ${err.message}`));
+            return;
+          }
+        }
+      } catch (err) {
+        // Can't read PID file, try getting from port
+        console.warn(`Could not read PID file ${NGINX_PID_FILE}, getting PID from port 8006: ${err.message}`);
+        try {
+          pid = await getNginxPidFromPort();
+        } catch (portErr) {
+          reject(new Error(`Failed to get nginx PID: ${portErr.message}`));
+          return;
+        }
+      }
+    } else {
+      // PID file doesn't exist, get PID from port
+      console.warn(`PID file not found at ${NGINX_PID_FILE}, getting PID from port 8006`);
+      try {
+        pid = await getNginxPidFromPort();
+      } catch (err) {
+        reject(new Error(`nginx PID file not found and could not get PID from port: ${err.message}`));
         return;
       }
-
-      // Send HUP signal to reload nginx configuration
-      exec(`kill -HUP ${pid}`, (error, stdout, stderr) => {
-        if (error) {
-          reject(new Error(`nginx reload failed: ${stderr || error.message}`));
-        } else {
-          console.log('nginx reloaded');
-          resolve(true);
-        }
-      });
-    } catch (err) {
-      reject(new Error(`Failed to read nginx PID file: ${err.message}`));
     }
+
+    // Send HUP signal to reload nginx configuration
+    exec(`kill -HUP ${pid}`, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`nginx reload failed: ${stderr || error.message}`));
+      } else {
+        console.log('nginx reloaded');
+        resolve(true);
+      }
+    });
   });
 }
 
