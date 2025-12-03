@@ -19,6 +19,9 @@ class VMViewer {
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
+    // Force a reflow to ensure the container is visible before setting up iframe
+    void viewerContainer.offsetHeight;
+    
     // viewerPort is now the Express port (3000), not websockify port
     if (viewerPort) {
       // VM is running, show VNC iframe (Express serves noVNC)
@@ -30,10 +33,23 @@ class VMViewer {
         iframe.style.opacity = '1';
         iframe.style.zIndex = '1';
       }
-      // Small delay to ensure DOM is ready
+      // Small delay to ensure DOM is ready and container has dimensions
       setTimeout(() => {
+        // Verify viewer-content has dimensions before initializing
+        const viewerContent = document.querySelector('.viewer-content');
+        if (viewerContent) {
+          const rect = viewerContent.getBoundingClientRect();
+          console.log('Viewer content dimensions on open:', rect.width, 'x', rect.height);
+          if (rect.width === 0 || rect.height === 0) {
+            console.warn('Viewer content has zero dimensions, forcing layout...');
+            // Force layout recalculation
+            viewerContent.style.display = 'none';
+            void viewerContent.offsetHeight;
+            viewerContent.style.display = '';
+          }
+        }
         this.initNoVNC(viewerPort);
-      }, 100);
+      }, 150);
       this.stopProgressPolling();
     } else {
       // VM not running, show progress
@@ -182,18 +198,46 @@ class VMViewer {
       console.log('Iframe visible:', rect.width > 0 && rect.height > 0);
     }, 50);
     
-    // Auto-resize iframe when window resizes
+    // Auto-resize iframe when window resizes - use explicit pixel dimensions like test file
     const resizeIframe = () => {
       const viewerContent = document.querySelector('.viewer-content');
-      if (viewerContent && iframe) {
-        const rect = viewerContent.getBoundingClientRect();
-        iframe.style.width = `${rect.width}px`;
-        iframe.style.height = `${rect.height}px`;
+      const viewerContainer = document.querySelector('.viewer-container');
+      
+      if (viewerContent && iframe && viewerContainer) {
+        // Get container dimensions (it's position: fixed, so it fills viewport)
+        const containerRect = viewerContainer.getBoundingClientRect();
+        const headerHeight = document.querySelector('.viewer-header')?.offsetHeight || 60;
+        
+        // Calculate available space for content (container height minus header)
+        const availableWidth = containerRect.width || window.innerWidth;
+        const availableHeight = (containerRect.height - headerHeight) || (window.innerHeight - headerHeight);
+        
+        console.log('Container dimensions:', containerRect.width, 'x', containerRect.height);
+        console.log('Header height:', headerHeight);
+        console.log('Available space for iframe:', availableWidth, 'x', availableHeight);
+        
+        // Set explicit pixel dimensions (like test file uses 100vw/100vh)
+        iframe.style.width = `${availableWidth}px`;
+        iframe.style.height = `${availableHeight}px`;
+        
+        // Also ensure viewer-content has the same dimensions
+        viewerContent.style.width = `${availableWidth}px`;
+        viewerContent.style.height = `${availableHeight}px`;
+        
+        console.log('Iframe set to:', iframe.style.width, 'x', iframe.style.height);
       }
     };
     
-    // Initial resize
-    resizeIframe();
+    // Initial resize - wait for DOM and layout to settle
+    setTimeout(() => {
+      resizeIframe();
+      // Also trigger on next frame to ensure layout is complete
+      requestAnimationFrame(() => {
+        resizeIframe();
+        // One more check after a brief delay
+        setTimeout(resizeIframe, 50);
+      });
+    }, 200);
     
     // Resize on window resize
     window.addEventListener('resize', resizeIframe);

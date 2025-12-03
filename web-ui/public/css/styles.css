@@ -421,20 +421,14 @@ body.advanced-mode * {
 }
 
 .viewer-content {
-  flex: 1;
+  flex: 1 1 0;
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: hidden;
   min-height: 0; /* Important for flex children */
-  flex: 1;
-  position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
+  /* Remove flex display - we want the iframe to fill the space directly */
+  padding: 0;
 }
 
 .viewer-progress {
