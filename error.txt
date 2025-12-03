@@ -1,7 +1,4 @@
 
-Sudo password initialized from environment variable
-VM Manager Web UI running on http://localhost:3000
-Open your browser to http://localhost:3000 to access the interface
 VM tracker cleaned up
 [VM Start test_full_novnc] VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
 
@@ -11,17 +8,17 @@ VM tracker cleaned up
 [VM Start test_full_novnc] stdout: "VM test_full_novnc started. Connect via VNC at 127.0.0.1:5900
 SUCCESS"
 nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] no "events" section in configuration
+nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
 nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
 
 [Websockify test_full_novnc] Failed to start nginx: nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] no "events" section in configuration
+nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
 nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
 
 nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] no "events" section in configuration
+nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
 nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
 
 Failed to start nginx when registering VM test_full_novnc: nginx config test failed: nginx: the configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf syntax is ok
-nginx: [emerg] no "events" section in configuration
+nginx: [emerg] open() "/Users/caleb/code/cyderes/cyber_workbench/nginx/logs/access.log" failed (2: No such file or directory)
 nginx: configuration file /Users/caleb/code/cyderes/cyber_workbench/nginx/novnc.conf test failed
