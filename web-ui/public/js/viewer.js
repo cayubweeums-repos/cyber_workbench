@@ -12,6 +12,15 @@ class VMViewer {
 
   open(vmName, viewerPort) {
     this.currentVMName = vmName;
+    
+    // If VM is running, open standalone viewer page (same as test-iframe.html but dynamic)
+    if (viewerPort) {
+      // Redirect to standalone viewer.html page with VM name parameter
+      window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+      return;
+    }
+    
+    // VM not running, show progress in embedded viewer
     const viewerContainer = document.getElementById('viewer-container');
     const progressDiv = document.getElementById('viewer-progress');
     const iframe = document.getElementById('novnc-viewer');
@@ -19,25 +28,12 @@ class VMViewer {
     viewerContainer.classList.add('active');
     document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
     
-    // viewerPort is now the Express port (3000), not websockify port
-    if (viewerPort) {
-      // VM is running, show VNC iframe (Express serves noVNC)
-      progressDiv.style.display = 'none';
-      if (iframe) {
-        iframe.style.display = 'block';
-      }
-      // Simple initialization - same as test file
-      this.initNoVNC(viewerPort);
-      this.stopProgressPolling();
-    } else {
-      // VM not running, show progress
-      if (iframe) {
-        iframe.style.display = 'none';
-        iframe.src = ''; // Clear iframe src
-      }
-      progressDiv.style.display = 'block';
-      this.startProgressPolling(vmName);
+    if (iframe) {
+      iframe.style.display = 'none';
+      iframe.src = ''; // Clear iframe src
     }
+    progressDiv.style.display = 'block';
+    this.startProgressPolling(vmName);
   }
 
   startProgressPolling(vmName) {
@@ -73,17 +69,14 @@ class VMViewer {
               const desktopReady = await this.vmService.checkDesktopReady(vmName);
               
               if (desktopReady.ready) {
-                // Desktop is ready, get viewer port and show VNC
+                // Desktop is ready, redirect to standalone viewer
                 const viewerInfo = await this.vmService.getViewerPort(vmName);
                 
                 if (viewerInfo && viewerInfo.port) {
                   this.stopProgressPolling();
-                  document.getElementById('viewer-progress').style.display = 'none';
-                  const iframe = document.getElementById('novnc-viewer');
-                  if (iframe) {
-                    iframe.style.display = 'block';
-                  }
-                  this.initNoVNC(viewerInfo.port);
+                  // Redirect to standalone viewer page
+                  window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+                  return;
                 }
               } else {
                 // Desktop not ready yet, show status
@@ -98,12 +91,9 @@ class VMViewer {
               
               if (viewerInfo && viewerInfo.port) {
                 this.stopProgressPolling();
-                document.getElementById('viewer-progress').style.display = 'none';
-                const iframe = document.getElementById('novnc-viewer');
-                if (iframe) {
-                  iframe.style.display = 'block';
-                }
-                this.initNoVNC(viewerInfo.port);
+                // Redirect to standalone viewer page
+                window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+                return;
               }
             }
           }
