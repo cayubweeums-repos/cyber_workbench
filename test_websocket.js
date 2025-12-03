@@ -4,7 +4,19 @@
  * This helps debug WebSocket connection issues
  */
 
-const WebSocket = require('ws');
+// Try to load ws from web-ui/node_modules first, then global
+let WebSocket;
+try {
+  WebSocket = require('./web-ui/node_modules/ws');
+} catch (e) {
+  try {
+    WebSocket = require('ws');
+  } catch (e2) {
+    console.error('Error: ws module not found. Install it with:');
+    console.error('  cd web-ui && npm install ws');
+    process.exit(1);
+  }
+}
 
 const vmName = process.argv[2] || 'test_vm';
 const websockifyPort = parseInt(process.argv[3]) || 6080;
