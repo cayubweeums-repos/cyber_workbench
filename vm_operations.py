@@ -82,7 +82,7 @@ class VMOperations:
                 capture_output=True,
                 text=True
             )
-            print(f"✓ Disk image created successfully", flush=True)
+            print(f"Disk image created successfully", flush=True)
             if result.stdout:
                 print(f"qemu-img output: {result.stdout}", flush=True)
             return True
@@ -226,7 +226,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ ISO extracted successfully", flush=True)
+            print("ISO extracted successfully", flush=True)
             
             # Step 2: Download and extract VirtIO drivers
             if progress_callback:
@@ -239,7 +239,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ VirtIO drivers downloaded and extracted", flush=True)
+            print("VirtIO drivers downloaded and extracted", flush=True)
             
             # Step 3: Prepare WinPE drivers
             if progress_callback:
@@ -252,7 +252,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print(f"✓ WinPE drivers prepared at {winpe_drivers}", flush=True)
+            print(f"WinPE drivers prepared at {winpe_drivers}", flush=True)
             
             # Step 4: Inject drivers into boot.wim
             if progress_callback:
@@ -264,7 +264,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers injected into boot.wim", flush=True)
+            print("Drivers injected into boot.wim", flush=True)
             
             # Step 5: Copy drivers to $WinPEDriver$ (at root of ISO for disk detection)
             if progress_callback:
@@ -276,7 +276,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers copied to $WinPEDriver$ directory", flush=True)
+            print("Drivers copied to $WinPEDriver$ directory", flush=True)
             
             # Step 6: Copy drivers to $OEM$/$$/Drivers (for installation phase)
             if progress_callback:
@@ -288,7 +288,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ Drivers copied to OEM directory", flush=True)
+            print("Drivers copied to OEM directory", flush=True)
             
             # Step 7: Inject autounattend.xml
             if progress_callback:
@@ -300,7 +300,7 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print("✓ autounattend.xml injected", flush=True)
+            print("autounattend.xml injected", flush=True)
             
             # Step 8: Rebuild ISO
             if progress_callback:
@@ -312,14 +312,14 @@ class VMOperations:
                 if progress_callback:
                     progress_callback(f"ERROR: {error_msg}")
                 return False
-            print(f"✓ Modified ISO created: {modified_iso}", flush=True)
+            print(f"Modified ISO created: {modified_iso}", flush=True)
             
             # Clean up temp directory after successful ISO creation
             # Use sudo since some files were created with sudo (e.g., $OEM$ directories)
             print(f"Cleaning up temp directory: {vm_temp_dir}")
             try:
                 shutil.rmtree(vm_temp_dir)
-                print("✓ Temp directory cleaned up")
+                print("Temp directory cleaned up")
             except PermissionError:
                 # If permission denied, use sudo to remove
                 print("Permission denied, using sudo to clean up temp directory...")
@@ -330,7 +330,7 @@ class VMOperations:
                         capture_output=True,
                         text=True
                     )
-                    print("✓ Temp directory cleaned up with sudo")
+                    print("Temp directory cleaned up with sudo")
                 except (RuntimeError, subprocess.CalledProcessError) as e:
                     # If sudo fails, just warn and keep the temp directory
                     print(f"WARNING: Could not clean up temp directory with sudo: {e}")
@@ -402,7 +402,7 @@ class VMOperations:
             
             # Count extracted items
             files_count = len(list(extract_dir.rglob("*")))
-            print(f"✓ Extracted ISO ({files_count} items)")
+            print(f"Extracted ISO ({files_count} items)")
             return True
         except subprocess.CalledProcessError as e:
             print(f"ERROR extracting ISO: {e}")
@@ -440,7 +440,7 @@ class VMOperations:
                     text=True,
                     check=True
                 )
-                print(f"✓ VirtIO drivers downloaded ({drivers_archive_shared.stat().st_size / (1024*1024):.2f} MB)")
+                print(f"VirtIO drivers downloaded ({drivers_archive_shared.stat().st_size / (1024*1024):.2f} MB)")
             except subprocess.CalledProcessError as e:
                 print(f"ERROR downloading drivers: {e}")
                 print(f"stdout: {e.stdout}")
@@ -458,7 +458,7 @@ class VMOperations:
         try:
             print(f"Copying archive to temp directory: {drivers_archive_temp}")
             shutil.copy2(drivers_archive_shared, drivers_archive_temp)
-            print(f"✓ Archive copied to temp directory")
+            print(f"Archive copied to temp directory")
         except Exception as e:
             print(f"ERROR copying archive: {e}")
             return False
@@ -486,7 +486,7 @@ class VMOperations:
                     check=True
                 )
                 
-                print(f"✓ tar command completed successfully")
+                print(f"tar command completed successfully")
                 if result.stdout:
                     print(f"tar stdout: {result.stdout}")
                 if result.stderr:
@@ -519,7 +519,7 @@ class VMOperations:
                     print(f"WARNING: No virtio* or driver directories found")
                     print(f"All contents: {[(d.name, 'dir' if d.is_dir() else 'file') for d in contents]}")
             
-            print(f"✓ Drivers extracted to {drivers_temp} ({len(contents)} items)")
+            print(f"Drivers extracted to {drivers_temp} ({len(contents)} items)")
             return True
         except subprocess.CalledProcessError as e:
             print(f"ERROR extracting drivers: {e}")
@@ -600,7 +600,7 @@ class VMOperations:
                     
                     # Copy entire contents of driver_path into destination
                     if _copy_driver_contents(driver_path, dest):
-                        print(f"✓ Copied {driver}")
+                        print(f"Copied {driver}")
                         drivers_copied += 1
                     else:
                         drivers_missing.append(f"{driver} (copy error)")
@@ -613,7 +613,7 @@ class VMOperations:
                         dest.mkdir(exist_ok=True)
                         alt_src = alt_paths[0]
                         if _copy_driver_contents(alt_src, dest):
-                            print(f"✓ Copied {driver} from alternative path: {alt_src}")
+                            print(f"Copied {driver} from alternative path: {alt_src}")
                             drivers_copied += 1
                         else:
                             drivers_missing.append(f"{driver} (alt path copy error)")
@@ -632,7 +632,7 @@ class VMOperations:
                 print(f"Drivers missing: {drivers_missing}")
                 return None
             
-            print(f"✓ WinPE drivers prepared: {drivers_copied}/{len(self.drivers)} drivers copied")
+            print(f"WinPE drivers prepared: {drivers_copied}/{len(self.drivers)} drivers copied")
             if drivers_missing:
                 print(f"WARNING: Missing drivers: {drivers_missing}")
             
@@ -728,13 +728,13 @@ class VMOperations:
                             text=True,
                             check=True
                         )
-                        print("✓ Drivers injected into index 1 (with sudo)", flush=True)
+                        print("Drivers injected into index 1 (with sudo)", flush=True)
                     elif result.returncode != 0:
                         # Other error - raise it
                         print(f"ERROR: Failed to inject drivers into index 1: {result.stderr}", flush=True)
                         result.check_returncode()
                     else:
-                        print("✓ Drivers injected into index 1", flush=True)
+                        print("Drivers injected into index 1", flush=True)
                 
                 # Inject into index 2 (Windows Setup) if it exists (as per guide)
                 # Note: Guide shows index 2 DOES use sudo (line 180)
@@ -758,7 +758,7 @@ class VMOperations:
                         text=True,
                         check=True
                     )
-                    print("✓ Drivers injected into index 2", flush=True)
+                    print("Drivers injected into index 2", flush=True)
                 elif not has_index_1:
                     # If index 2 doesn't exist, use index 1 with sudo (as per guide line 184-185)
                     print("Only one image found, injecting into index 1 with sudo...", flush=True)
@@ -778,7 +778,7 @@ class VMOperations:
                         text=True,
                         check=True
                     )
-                    print("✓ Drivers injected into index 1 (with sudo)", flush=True)
+                    print("Drivers injected into index 1 (with sudo)", flush=True)
                 else:
                     # If index 2 doesn't exist and index 1 doesn't exist, error
                     print("ERROR: No valid image indices found in boot.wim", flush=True)
@@ -838,7 +838,7 @@ class VMOperations:
                 return False
             
             driver_count = len(list(winpe_root_dir.iterdir()))
-            print(f"✓ Drivers copied to $WinPEDriver$ directory ({driver_count} items)", flush=True)
+            print(f"Drivers copied to $WinPEDriver$ directory ({driver_count} items)", flush=True)
             print(f"$WinPEDriver$ directory contents: {[d.name for d in winpe_root_dir.iterdir()]}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
@@ -903,7 +903,7 @@ class VMOperations:
                 return False
             
             driver_count = len(list(oem_dir_absolute.iterdir()))
-            print(f"✓ Drivers copied to OEM directory ({driver_count} items)", flush=True)
+            print(f"Drivers copied to OEM directory ({driver_count} items)", flush=True)
             print(f"OEM directory contents: {[d.name for d in oem_dir_absolute.iterdir()]}", flush=True)
             return True
         except subprocess.CalledProcessError as e:
@@ -997,7 +997,7 @@ class VMOperations:
                     text=True,
                     check=True
                 )
-                print("✓ Successfully added autounattend.xml", flush=True)
+                print("Successfully added autounattend.xml", flush=True)
                 
                 # Also inject as autounattend.dat (as per guide)
                 self._run_command(
@@ -1007,7 +1007,7 @@ class VMOperations:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
-                print("✓ Also added as autounattend.dat")
+                print("Also added as autounattend.dat")
                 
                 # Verify injection worked (as per guide)
                 verify_result = subprocess.run(
@@ -1017,9 +1017,9 @@ class VMOperations:
                     text=True
                 )
                 if verify_result.returncode == 0:
-                    print("✓ Verified: autounattend.xml found in index")
+                    print("Verified: autounattend.xml found in index")
                 else:
-                    print("✗ WARNING: Could not verify autounattend.xml in index")
+                    print("WARNING: Could not verify autounattend.xml in index")
                 
                 return True
             finally:
@@ -1091,7 +1091,7 @@ class VMOperations:
                 print(f"ERROR: Output ISO is suspiciously small: {iso_size} bytes", flush=True)
                 return False
             
-            print(f"✓ ISO rebuilt successfully ({iso_size / (1024*1024*1024):.2f} GB)", flush=True)
+            print(f"ISO rebuilt successfully ({iso_size / (1024*1024*1024):.2f} GB)", flush=True)
             return True
         except subprocess.CalledProcessError as e:
             print(f"ERROR: mkisofs command failed: {e}", flush=True)

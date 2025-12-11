@@ -14,23 +14,23 @@ console.log('Checking noVNC setup...\n');
 
 // Check if directory exists
 if (!fs.existsSync(novncDir)) {
-  console.error('❌ noVNC directory does not exist');
+  console.error('ERROR: noVNC directory does not exist');
   console.error(`   Expected: ${novncDir}`);
   console.error('\n   Run: make setup-novnc');
   process.exit(1);
 }
 
-console.log('✓ noVNC directory exists');
+console.log('SUCCESS: noVNC directory exists');
 
 // Check if vnc.html exists
 if (!fs.existsSync(vncHtml)) {
-  console.error('❌ vnc.html not found');
+  console.error('ERROR: vnc.html not found');
   console.error(`   Expected: ${vncHtml}`);
   console.error('\n   Run: make setup-novnc');
   process.exit(1);
 }
 
-console.log('✓ vnc.html exists');
+console.log('SUCCESS: vnc.html exists');
 
 // Check if required noVNC files exist
 const requiredFiles = [
@@ -43,9 +43,9 @@ let allFilesExist = true;
 for (const file of requiredFiles) {
   const filePath = path.join(novncDir, file);
   if (fs.existsSync(filePath)) {
-    console.log(`✓ ${file} exists`);
+    console.log(`SUCCESS: ${file} exists`);
   } else {
-    console.error(`❌ ${file} not found`);
+    console.error(`ERROR: ${file} not found`);
     allFilesExist = false;
   }
 }
@@ -56,7 +56,7 @@ if (!allFilesExist) {
   process.exit(1);
 }
 
-console.log('\n✓ noVNC is properly set up!');
+console.log('\nSUCCESS: noVNC is properly set up!');
 console.log(`   Files are available at: ${novncDir}`);
 console.log(`   Access via: http://localhost:3000/novnc/vnc.html`);
 

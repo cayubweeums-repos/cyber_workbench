@@ -37,12 +37,12 @@ def check_qemu_vnc_config(vm_name):
         )
         
         if result.returncode != 0:
-            print(f"❌ VM {vm_name} is not running")
+            print(f"ERROR: VM {vm_name} is not running")
             return False
         
         pids = result.stdout.strip().split('\n')
         if not pids or not pids[0]:
-            print(f"❌ Could not find QEMU process for VM {vm_name}")
+            print(f"ERROR: Could not find QEMU process for VM {vm_name}")
             return False
         
         pid = pids[0]
@@ -55,7 +55,7 @@ def check_qemu_vnc_config(vm_name):
         )
         
         if ps_result.returncode != 0:
-            print(f"❌ Could not get process info for PID {pid}")
+            print(f"ERROR: Could not get process info for PID {pid}")
             return False
         
         cmd_line = ps_result.stdout
@@ -65,7 +65,7 @@ def check_qemu_vnc_config(vm_name):
         has_vnc_flag = "-vnc" in cmd_line
         
         if not (has_display_vnc or has_vnc_flag):
-            print(f"❌ QEMU process does not have VNC display configured")
+            print(f"ERROR: QEMU process does not have VNC display configured")
             print(f"   Command line: {cmd_line[:200]}...")
             return False
         
@@ -79,13 +79,13 @@ def check_qemu_vnc_config(vm_name):
                 
                 # VNC format should be 127.0.0.1:0 (display 0 = port 5900)
                 if "127.0.0.1:0" in vnc_arg or ":0" in vnc_arg:
-                    print(f"✓ VNC display configured correctly: {vnc_arg}")
+                    print(f"SUCCESS: VNC display configured correctly: {vnc_arg}")
                     print(f"  Display 0 maps to port 5900")
                 else:
-                    print(f"⚠️  VNC format may be incorrect: {vnc_arg}")
+                    print(f"WARNING: VNC format may be incorrect: {vnc_arg}")
                     print(f"   Expected: 127.0.0.1:0 (or :0)")
             except (ValueError, IndexError):
-                print(f"⚠️  Could not parse VNC argument from command line")
+                print(f"WARNING: Could not parse VNC argument from command line")
         
         return True
         
@@ -105,7 +105,7 @@ def check_websockify_connection(vm_name, vnc_port=5900):
         
         if result.returncode == 0:
             pids = result.stdout.strip().split('\n')
-            print(f"✓ websockify is running (PID: {pids[0] if pids else 'unknown'})")
+            print(f"SUCCESS: websockify is running (PID: {pids[0] if pids else 'unknown'})")
             
             # Get websockify port
             ps_result = subprocess.run(
@@ -125,7 +125,7 @@ def check_websockify_connection(vm_name, vnc_port=5900):
             
             return True
         else:
-            print(f"⚠️  websockify is not running for VM {vm_name}")
+            print(f"WARNING: websockify is not running for VM {vm_name}")
             print(f"   This is expected if the VM was just started")
             return False
             
@@ -152,7 +152,7 @@ def validate_vnc_display(vm_name):
     results['vnc_configured'] = results['qemu_running']
     
     if not results['qemu_running']:
-        print("\n❌ VM is not running or VNC is not configured")
+        print("\nERROR: VM is not running or VNC is not configured")
         print("   Start the VM first, then run this validation again")
         return False
     
@@ -163,9 +163,9 @@ def validate_vnc_display(vm_name):
     results['vnc_port_accessible'] = check_vnc_port(5900)
     
     if results['vnc_port_accessible']:
-        print("✓ VNC port 5900 is listening and accessible")
+        print("SUCCESS: VNC port 5900 is listening and accessible")
     else:
-        print("⚠️  VNC port 5900 is not accessible")
+        print("WARNING: VNC port 5900 is not accessible")
         print("   This may be normal if the VM is still booting")
         print("   Wait a few seconds and check again")
     
@@ -180,18 +180,18 @@ def validate_vnc_display(vm_name):
     print(f"{'='*60}")
     print("Validation Summary:")
     print(f"{'='*60}")
-    print(f"QEMU Running with VNC:     {'✓' if results['qemu_running'] else '❌'}")
-    print(f"VNC Port Accessible:        {'✓' if results['vnc_port_accessible'] else '⚠️ '}")
-    print(f"websockify Connected:      {'✓' if results['websockify_ready'] else '⚠️ '}")
+    print(f"QEMU Running with VNC:     {'YES' if results['qemu_running'] else 'NO'}")
+    print(f"VNC Port Accessible:        {'YES' if results['vnc_port_accessible'] else 'NO'}")
+    print(f"websockify Connected:      {'YES' if results['websockify_ready'] else 'NO'}")
     print()
     
     if results['qemu_running'] and results['vnc_configured']:
-        print("✓ VNC display is configured correctly for noVNC")
+        print("SUCCESS: VNC display is configured correctly for noVNC")
         print("  The VM uses standard VNC protocol on port 5900")
         print("  websockify can convert this to WebSocket for noVNC")
         return True
     else:
-        print("❌ VNC display configuration has issues")
+        print("ERROR: VNC display configuration has issues")
         return False
 
 if __name__ == "__main__":

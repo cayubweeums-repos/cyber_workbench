@@ -185,7 +185,7 @@ class VMManager:
         try:
             try:
                 shutil.rmtree(vm_dir)
-                print(f"✓ Deleted VM '{name}'")
+                print(f"Successfully deleted VM '{name}'")
                 return True
             except PermissionError:
                 # If permission denied, use sudo
@@ -197,7 +197,7 @@ class VMManager:
                     text=True,
                     check=True
                 )
-                print(f"✓ Deleted VM '{name}' with sudo")
+                print(f"Successfully deleted VM '{name}' with sudo")
                 return True
         except subprocess.CalledProcessError as e:
             print(f"Error deleting VM '{name}' with sudo: {e}")
