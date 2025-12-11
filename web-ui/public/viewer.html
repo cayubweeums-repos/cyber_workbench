@@ -90,10 +90,10 @@
             // Update title
             document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
             
-            // Build noVNC URL - exact same format as test-iframe.html
+            // Build noVNC URL with 1920x1080 resolution and scaling
             const expressPort = 3000;
             const websockifyPath = `websockify/${vmName}`;
-            const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true`;
+            const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true&resize=scale`;
             
             // Set iframe src - exact same as test-iframe.html
             const iframe = document.getElementById('novnc-viewer');

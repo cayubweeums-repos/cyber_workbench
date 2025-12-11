@@ -1226,7 +1226,7 @@ class VMOperations:
                 "-bios", ovmf,
                 "-rtc", "base=localtime",
                 "-display", "vnc=:0",
-                "-vnc", "127.0.0.1:0",
+                "-vnc", "127.0.0.1:0,geometry=1920x1080",
                 # QEMU Guest Agent (QGA) configuration
                 "-chardev", f"socket,path={qga_socket},server=on,wait=off,id=qga0",
                 "-device", "virtio-serial-pci,id=virtio-serial0",
