@@ -719,6 +719,32 @@ body.advanced-mode * {
   padding: 20px;
 }
 
+.environment-progress {
+  margin: 12px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--color-bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-accent);
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+}
+
 .environment-card-header {
   display: flex;
   justify-content: space-between;
@@ -930,6 +956,22 @@ body.advanced-mode * {
   align-items: center;
   cursor: pointer;
   margin: 0;
+}
+
+.network-isolation-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.form-help-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .review-section {

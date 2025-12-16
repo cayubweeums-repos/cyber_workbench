@@ -118,6 +118,12 @@ class VMManagerApp {
     document.addEventListener('environment-action', (e) => {
       this.handleEnvironmentAction(e.detail.action, e.detail.name, e.detail.running);
     });
+
+    // VM viewer from environment handler
+    document.addEventListener('open-vm-viewer', async (e) => {
+      const { vmName, environmentName } = e.detail;
+      await this.openVMFromEnvironment(vmName, environmentName);
+    });
   }
 
   showView(viewName) {
@@ -191,9 +197,30 @@ class VMManagerApp {
 
   async viewEnvironment(name) {
     try {
+      // Store environment name for VM viewer access
+      this.currentEnvironmentName = name;
       this.environmentViewer.open(name, this.environmentService);
     } catch (error) {
       alert('Error: ' + error.message);
+    }
+  }
+
+  async openVMFromEnvironment(vmName, environmentName = null) {
+    try {
+      const envName = environmentName || this.currentEnvironmentName;
+      if (!envName) {
+        throw new Error('Environment name not available');
+      }
+
+      // Get viewer port for VM in environment directory
+      const port = await this.vmService.getViewerPort(vmName, envName);
+      if (port) {
+        this.viewer.open(vmName, port);
+      } else {
+        throw new Error('VM viewer not available. Make sure the VM is running.');
+      }
+    } catch (error) {
+      alert('Error opening VM viewer: ' + error.message);
     }
   }
 

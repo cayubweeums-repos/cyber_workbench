@@ -48,10 +48,20 @@ class VMConfig:
 class VMManager:
     """Manages VM configurations and operations."""
     
-    def __init__(self, repo_root: str):
+    def __init__(self, repo_root: str, vms_dir: Optional[str] = None):
+        """
+        Initialize VMManager.
+        
+        Args:
+            repo_root: Root directory of the repository
+            vms_dir: Optional custom directory for VMs. If None, uses repo_root/vms
+        """
         self.repo_root = Path(repo_root)
-        self.vms_dir = self.repo_root / "vms"
-        self.vms_dir.mkdir(exist_ok=True)
+        if vms_dir:
+            self.vms_dir = Path(vms_dir)
+        else:
+            self.vms_dir = self.repo_root / "vms"
+        self.vms_dir.mkdir(parents=True, exist_ok=True)
         self.sudo_password: Optional[str] = None
 
     def set_sudo_password(self, password: str):
@@ -76,12 +86,24 @@ class VMManager:
             cmd = ["sudo", "-S"] + cmd
         return subprocess.run(cmd, **kwargs)
     
-    def list_vms(self) -> List[str]:
-        """List all VM names by scanning the vms directory."""
+    def list_vms(self, exclude_environments: bool = True) -> List[str]:
+        """
+        List all VM names by scanning the vms directory.
+        
+        Args:
+            exclude_environments: If True, exclude VMs in environment directories
+        """
         vms = []
         if self.vms_dir.exists():
             for item in self.vms_dir.iterdir():
                 if item.is_dir() and item.name != "shared":
+                    # Skip environment directories if excluding
+                    if exclude_environments:
+                        # Check if this is an environment directory (contains environments/ subdir)
+                        env_dir = self.repo_root / "environments" / item.name
+                        if env_dir.exists():
+                            continue
+                    
                     config_file = item / "config.yaml"
                     if config_file.exists():
                         vms.append(item.name)

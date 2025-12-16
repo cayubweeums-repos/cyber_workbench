@@ -12,7 +12,7 @@ const vmTracker = require('./vm-tracker');
 /**
  * Create VM disk image
  */
-async function createVMDisk(vmName, sizeGb) {
+async function createVMDisk(vmName, sizeGb, vmsDir = null) {
   setProgress(vmName, {
     stage: 'Creating disk image',
     message: `Creating ${sizeGb}GB disk image...`,
@@ -21,6 +21,7 @@ async function createVMDisk(vmName, sizeGb) {
   
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
+    const vmsDirArg = vmsDir ? `'${vmsDir}'` : 'None';
     const script = `
 import sys
 import traceback
@@ -29,7 +30,7 @@ sys.path.insert(0, '${REPO_ROOT}')
 try:
     from vm_operations import VMOperations
     
-    ops = VMOperations('${REPO_ROOT}')
+    ops = VMOperations('${REPO_ROOT}', ${vmsDirArg})
     result = ops.create_vm_disk('${vmName}', ${sizeGb})
     if result:
         print('SUCCESS', flush=True)
@@ -105,7 +106,7 @@ except Exception as e:
 /**
  * Download Windows ISO with progress tracking
  */
-async function downloadWindowsISO(vmName = 'shared') {
+async function downloadWindowsISO(vmName = 'shared', vmsDir = null) {
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
     const script = `
@@ -118,7 +119,8 @@ from pathlib import Path
 sys.path.insert(0, '${REPO_ROOT}')
 from vm_operations import VMOperations
 
-ops = VMOperations('${REPO_ROOT}')
+vms_dir = ${vmsDir ? `'${vmsDir}'` : 'None'}
+ops = VMOperations('${REPO_ROOT}', vms_dir)
 iso_path = ops.shared_dir / "win11-arm64.iso"
 
 # Check if already exists
@@ -310,7 +312,7 @@ function formatBytes(bytes) {
 /**
  * Prepare ISO for VM (with progress tracking)
  */
-async function prepareISOForVM(vmName, providedSudoPassword = null) {
+async function prepareISOForVM(vmName, providedSudoPassword = null, vmsDir = null) {
   // Set initial progress to show we're starting ISO preparation
   setProgress(vmName, {
     stage: 'Preparing ISO',
@@ -349,7 +351,8 @@ from vm_operations import VMOperations
 def progress(msg):
     print(json.dumps({"type": "progress", "message": msg}), flush=True)
 
-ops = VMOperations('${REPO_ROOT}')
+vms_dir = ${vmsDir ? `'${vmsDir}'` : 'None'}
+ops = VMOperations('${REPO_ROOT}', vms_dir)
 ops.set_sudo_password(base64.b64decode('${sudoPasswordB64}').decode('utf-8'))
 result = ops.prepare_iso_for_vm('${vmName}', progress)
 print(json.dumps({"type": "result", "success": result}))
@@ -492,11 +495,19 @@ print(json.dumps({"type": "result", "success": result}))
 /**
  * Start VM
  */
-async function startVM(vmName, config) {
+async function startVM(vmName, config, networkConfig = null, vmsDir = null) {
+  setProgress(vmName, {
+    stage: 'Starting VM',
+    message: `Starting VM ${vmName}...`,
+    percent: 0
+  });
+  
   return new Promise((resolve, reject) => {
     const python = require('./python-bridge').getPythonExecutable();
     // Use base64 encoding to safely pass JSON to Python
     const configJson = Buffer.from(JSON.stringify(config)).toString('base64');
+    const networkConfigJson = networkConfig ? Buffer.from(JSON.stringify(networkConfig)).toString('base64') : null;
+    const vmsDirArg = vmsDir ? `'${vmsDir}'` : 'None';
     const script = `
 import sys
 import json
@@ -510,8 +521,14 @@ try:
     config_dict = json.loads(config_json)
     config = VMConfig.from_dict(config_dict)
     
-    ops = VMOperations('${REPO_ROOT}')
-    result = ops.start_vm('${vmName}', config)
+    network_config = None
+    ${networkConfigJson ? `
+    network_config_json = base64.b64decode('${networkConfigJson}').decode('utf-8')
+    network_config = json.loads(network_config_json)
+    ` : ''}
+    
+    ops = VMOperations('${REPO_ROOT}', ${vmsDirArg})
+    result = ops.start_vm('${vmName}', config, network_config)
     print('SUCCESS' if result else 'FAILED')
 except Exception as e:
     import traceback

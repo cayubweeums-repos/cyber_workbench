@@ -6,7 +6,7 @@ class Environment {
   constructor(data = {}) {
     this.name = data.name || '';
     this.services = data.services || []; // Array of service configs: { name, type, cpu_cores, ram_gb, disk_size_gb, network, tools[] }
-    this.networks = data.networks || []; // Array of network configs: { name, type }
+    this.networks = data.networks || []; // Array of network configs: { name, type, isolated }
     this.status = data.status || 'stopped'; // 'stopped', 'running', 'starting', 'stopping'
     this.createdAt = data.createdAt || new Date().toISOString();
   }
@@ -36,7 +36,11 @@ class Environment {
     return {
       name: this.name,
       services: this.services,
-      networks: this.networks,
+      networks: this.networks.map(net => ({
+        name: net.name,
+        type: net.type || 'bridge',
+        isolated: net.isolated || false
+      })),
       status: this.status,
       createdAt: this.createdAt
     };

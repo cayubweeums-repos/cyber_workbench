@@ -253,7 +253,14 @@ class EnvironmentViewer extends BaseComponent {
             const nodeId = params.nodes[0];
             const node = nodes.find(n => n.id === nodeId);
             if (node) {
-              this.showNodeDetails(node.data.service);
+              const service = node.data.service;
+              // If it's a WindowsVM, open VM viewer
+              if (service.type === 'WindowsVM') {
+                this.openVMViewer(service.name);
+              } else {
+                // For other service types, show details
+                this.showNodeDetails(service);
+              }
             }
           } else {
             this.hideNodeDetails();
@@ -273,6 +280,17 @@ class EnvironmentViewer extends BaseComponent {
       console.error('vis-network not available. typeof vis:', typeof vis, 'vis object:', vis);
       networkDiv.innerHTML = '<div class="empty-state"><p style="color: #ff4444;">vis-network library not loaded. Please check that the library is properly included.</p></div>';
     }
+  }
+
+  async openVMViewer(vmName) {
+    // Emit event to open VM viewer with environment name
+    const event = new CustomEvent('open-vm-viewer', {
+      detail: { 
+        vmName: vmName,
+        environmentName: this.environment ? this.environment.name : null
+      }
+    });
+    document.dispatchEvent(event);
   }
 
   showNodeDetails(service) {
@@ -310,7 +328,22 @@ class EnvironmentViewer extends BaseComponent {
           </ul>
         </div>
       ` : ''}
+      ${service.type === 'WindowsVM' ? `
+        <div class="node-detail-item">
+          <button class="btn btn-primary btn-small" data-action="open-vm-viewer" data-vm="${service.name}">
+            Open VM Viewer
+          </button>
+        </div>
+      ` : ''}
     `;
+    
+    // Attach click handler for VM viewer button
+    const vmViewerBtn = detailsContent.querySelector('[data-action="open-vm-viewer"]');
+    if (vmViewerBtn) {
+      vmViewerBtn.addEventListener('click', () => {
+        this.openVMViewer(service.name);
+      });
+    }
     
     detailsPanel.style.display = 'block';
   }

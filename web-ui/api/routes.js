@@ -77,6 +77,13 @@ function setupRoutes(app) {
     res.json({ success: true, progress });
   });
   
+  // Environment progress endpoint
+  router.get('/environments/:name/progress', (req, res) => {
+    const { name } = req.params;
+    const progress = getProgress(name);
+    res.json({ success: true, progress });
+  });
+  
   // Environment management routes
   router.get('/environments', environmentRoutes.listEnvironments);
   router.get('/environments/:name', environmentRoutes.getEnvironment);

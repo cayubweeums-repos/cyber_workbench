@@ -231,6 +231,13 @@ class EnvironmentWizard extends BaseComponent {
             <input type="text" class="network-name" data-index="${index}" value="${network.name || ''}" placeholder="Enter network name">
           </div>
           <div class="form-group">
+            <label class="network-isolation-label">
+              <input type="checkbox" class="network-isolated" data-index="${index}" ${network.isolated ? 'checked' : ''}>
+              <span>Isolated Network (No Internet Access)</span>
+            </label>
+            <small class="form-help-text">When enabled, services on this network cannot access the internet. Default: Internet access enabled.</small>
+          </div>
+          <div class="form-group">
             <label>Assign Services</label>
             <div class="network-services">
               ${this.environmentData.services.map((service, sIndex) => `
@@ -537,9 +544,11 @@ class EnvironmentWizard extends BaseComponent {
         const networkItems = stepContent.querySelectorAll('.wizard-network-item');
         this.environmentData.networks = Array.from(networkItems).map((item, index) => {
           const nameInput = item.querySelector('.network-name');
+          const isolatedCheckbox = item.querySelector('.network-isolated');
           return {
             name: nameInput ? nameInput.value.trim() : '',
-            type: 'user' // Default network type
+            type: 'bridge', // Bridge network type for environments
+            isolated: isolatedCheckbox ? isolatedCheckbox.checked : false
           };
         });
         
@@ -640,7 +649,8 @@ class EnvironmentWizard extends BaseComponent {
 
     this.environmentData.networks.push({
       name: '',
-      type: 'user'
+      type: 'bridge',
+      isolated: false // Default: internet access enabled
     });
     this.renderStep();
   }

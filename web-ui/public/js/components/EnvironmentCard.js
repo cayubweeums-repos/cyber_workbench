@@ -17,16 +17,34 @@ class EnvironmentCard extends BaseComponent {
     return card;
   }
 
-  getHTML() {
+  getHTML(progress = null) {
     const resources = this.environment.getTotalResources();
     const statusClass = this.environment.status;
-    const statusText = this.environment.status.charAt(0).toUpperCase() + this.environment.status.slice(1);
+    let statusText = this.environment.status.charAt(0).toUpperCase() + this.environment.status.slice(1);
+    
+    // Show progress if available
+    if (progress && (this.environment.status === 'starting' || this.environment.status === 'stopping')) {
+      statusText = `${statusText} - ${progress.stage || ''}`;
+      if (progress.message) {
+        statusText += `: ${progress.message}`;
+      }
+    }
+    
+    const progressHTML = progress && (this.environment.status === 'starting' || this.environment.status === 'stopping') ? `
+      <div class="environment-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${progress.percent || 0}%"></div>
+        </div>
+        <div class="progress-text">${progress.percent || 0}%</div>
+      </div>
+    ` : '';
     
     return `
       <div class="environment-card-header">
         <div class="environment-name">${this.environment.name}</div>
         <div class="environment-status ${statusClass}">${statusText}</div>
       </div>
+      ${progressHTML}
       <div class="environment-info">
         <div class="environment-specs">
           <span>Services: ${this.environment.getServiceCount()}</span>
@@ -64,10 +82,17 @@ class EnvironmentCard extends BaseComponent {
     });
   }
 
-  update(environment) {
+  update(environment, progress = null) {
     this.environment = environment;
     if (this.container) {
-      this.container.innerHTML = this.getHTML();
+      this.container.innerHTML = this.getHTML(progress);
+      this.attachEventListeners();
+    }
+  }
+
+  updateProgress(progress) {
+    if (this.container && (this.environment.status === 'starting' || this.environment.status === 'stopping')) {
+      this.container.innerHTML = this.getHTML(progress);
       this.attachEventListeners();
     }
   }

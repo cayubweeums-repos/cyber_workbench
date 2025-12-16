@@ -71,5 +71,13 @@ class EnvironmentService {
     );
     return environments.filter(env => env !== null);
   }
+
+  /**
+   * Get progress for an environment operation
+   */
+  async getProgress(name) {
+    const response = await this.api.get(`/environments/${name}/progress`);
+    return response.progress || null;
+  }
 }
 

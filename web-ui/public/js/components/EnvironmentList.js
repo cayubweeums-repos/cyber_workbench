@@ -28,7 +28,7 @@ class EnvironmentList extends BaseComponent {
     }
   }
 
-  display(environments) {
+  async display(environments) {
     if (!this.environmentListElement) {
       this.render();
     }
@@ -42,11 +42,27 @@ class EnvironmentList extends BaseComponent {
       return;
     }
 
+    // Fetch progress for all environments
+    const progressMap = new Map();
+    await Promise.all(
+      environments.map(async (env) => {
+        try {
+          const progress = await this.environmentService.getProgress(env.name);
+          if (progress) {
+            progressMap.set(env.name, progress);
+          }
+        } catch (error) {
+          // Ignore progress errors
+        }
+      })
+    );
+
     // Update or create cards
     environments.forEach(environment => {
+      const progress = progressMap.get(environment.name);
       if (this.cards.has(environment.name)) {
         // Update existing card
-        this.cards.get(environment.name).update(environment);
+        this.cards.get(environment.name).update(environment, progress);
       } else {
         // Create new card
         const card = new EnvironmentCard(environment, (action, name, running) => {
@@ -56,6 +72,9 @@ class EnvironmentList extends BaseComponent {
         this.environmentListElement.appendChild(cardElement);
         card.attachEventListeners();
         this.cards.set(environment.name, card);
+        if (progress) {
+          card.updateProgress(progress);
+        }
       }
     });
 
