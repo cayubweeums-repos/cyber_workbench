@@ -57,6 +57,9 @@ class NavigationSidebar extends BaseComponent {
         document.dispatchEvent(event);
       });
     });
+    
+    // Ensure initial state is correct
+    this.updateExpandedState();
   }
 
   toggle() {

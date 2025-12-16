@@ -659,6 +659,10 @@ body.advanced-mode * {
 .nav-sidebar.collapsed .nav-item {
   padding: 12px;
   justify-content: center;
+  min-height: 44px;
+  display: flex;
+  visibility: visible;
+  opacity: 1;
 }
 
 .nav-item:hover {
@@ -680,12 +684,15 @@ body.advanced-mode * {
 .nav-label {
   font-size: 14px;
   transition: opacity 0.3s ease;
+  display: block;
 }
 
 .nav-sidebar.collapsed .nav-label {
-  opacity: 0;
-  width: 0;
-  overflow: hidden;
+  opacity: 1;
+  width: auto;
+  overflow: visible;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 /* Main Content */
