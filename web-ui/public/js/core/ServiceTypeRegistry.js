@@ -33,7 +33,7 @@ class ServiceTypeRegistry {
     // Register WindowsVM service type
     this.register('WindowsVM', {
       name: 'Windows VM',
-      icon: '💻',
+      icon: '',
       defaultResources: {
         cpu_cores: 8,
         ram_gb: 8,

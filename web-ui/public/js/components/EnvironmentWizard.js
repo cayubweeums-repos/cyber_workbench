@@ -66,10 +66,45 @@ class EnvironmentWizard extends BaseComponent {
       }
     });
 
-    // Handle input changes
+    // Handle input changes - update data model in real-time
     this.container.addEventListener('input', (e) => {
       if (e.target.id === 'env-name') {
         this.environmentData.name = e.target.value;
+      } else if (e.target.classList.contains('service-name')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].name = e.target.value;
+        }
+      } else if (e.target.classList.contains('service-cpu')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].cpu_cores = parseInt(e.target.value) || 8;
+        }
+      } else if (e.target.classList.contains('service-ram')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].ram_gb = parseInt(e.target.value) || 8;
+        }
+      } else if (e.target.classList.contains('service-disk')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].disk_size_gb = parseInt(e.target.value) || 64;
+        }
+      } else if (e.target.classList.contains('service-type')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].type = e.target.value;
+        }
+      }
+    });
+
+    // Handle select changes
+    this.container.addEventListener('change', (e) => {
+      if (e.target.classList.contains('service-type')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index) && this.environmentData.services[index]) {
+          this.environmentData.services[index].type = e.target.value;
+        }
       }
     });
   }
@@ -145,7 +180,7 @@ class EnvironmentWizard extends BaseComponent {
             <select class="service-type" data-index="${index}">
               ${Object.keys(serviceTypeRegistry.types).map(typeKey => {
                 const st = serviceTypeRegistry.types[typeKey];
-                return `<option value="${typeKey}" ${service.type === typeKey ? 'selected' : ''}>${st.icon} ${st.name}</option>`;
+                return `<option value="${typeKey}" ${service.type === typeKey ? 'selected' : ''}>${st.name}</option>`;
               }).join('')}
             </select>
           </div>
@@ -353,11 +388,13 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   nextStep() {
+    // Save current step data first to ensure data model is up to date
+    this.saveCurrentStepData();
+    
+    // Then validate
     if (!this.validateCurrentStep()) {
       return;
     }
-
-    this.saveCurrentStepData();
     
     if (this.currentStep < this.totalSteps) {
       this.currentStep++;
@@ -373,22 +410,55 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   validateCurrentStep() {
+    // Always validate from data model (which should be up to date after saveCurrentStepData)
     switch (this.currentStep) {
       case 1:
-        if (!this.environmentData.name.trim()) {
-          alert('Environment name is required');
-          return false;
-        }
-        if (this.environmentData.services.length === 0) {
-          alert('At least one service is required');
-          return false;
-        }
-        // Validate each service
-        for (let i = 0; i < this.environmentData.services.length; i++) {
-          const service = this.environmentData.services[i];
-          if (!service.name || !service.name.trim()) {
-            alert(`Service ${i + 1} must have a name`);
+        // Double-check by reading from DOM as well
+        const stepContent = this.container.querySelector('.wizard-content');
+        if (stepContent) {
+          const envNameInput = stepContent.querySelector('#env-name');
+          const envName = envNameInput ? envNameInput.value.trim() : this.environmentData.name;
+          if (!envName) {
+            alert('Environment name is required');
             return false;
+          }
+          
+          const serviceItems = stepContent.querySelectorAll('.wizard-service-item');
+          if (serviceItems.length === 0) {
+            alert('At least one service is required');
+            return false;
+          }
+          
+          // Validate each service by reading from DOM (most reliable)
+          for (let i = 0; i < serviceItems.length; i++) {
+            const item = serviceItems[i];
+            const nameInput = item.querySelector('.service-name');
+            const serviceName = nameInput ? nameInput.value.trim() : '';
+            if (!serviceName) {
+              alert(`Service ${i + 1} must have a name`);
+              // Focus on the input that's missing
+              if (nameInput) {
+                nameInput.focus();
+              }
+              return false;
+            }
+          }
+        } else {
+          // Fallback to data model validation
+          if (!this.environmentData.name || !this.environmentData.name.trim()) {
+            alert('Environment name is required');
+            return false;
+          }
+          if (this.environmentData.services.length === 0) {
+            alert('At least one service is required');
+            return false;
+          }
+          for (let i = 0; i < this.environmentData.services.length; i++) {
+            const service = this.environmentData.services[i];
+            if (!service.name || !service.name.trim()) {
+              alert(`Service ${i + 1} must have a name`);
+              return false;
+            }
           }
         }
         break;
@@ -418,23 +488,41 @@ class EnvironmentWizard extends BaseComponent {
 
     switch (this.currentStep) {
       case 1:
-        // Save service data
+        // Save environment name
+        const envNameInput = stepContent.querySelector('#env-name');
+        if (envNameInput) {
+          this.environmentData.name = envNameInput.value.trim();
+        }
+
+        // Save service data - read from DOM to ensure we have latest values
         const serviceItems = stepContent.querySelectorAll('.wizard-service-item');
-        this.environmentData.services = Array.from(serviceItems).map((item, index) => {
+        const savedServices = [];
+        
+        serviceItems.forEach((item) => {
           const nameInput = item.querySelector('.service-name');
           const typeSelect = item.querySelector('.service-type');
           const cpuInput = item.querySelector('.service-cpu');
           const ramInput = item.querySelector('.service-ram');
           const diskInput = item.querySelector('.service-disk');
           
-          return {
+          const serviceData = {
             name: nameInput ? nameInput.value.trim() : '',
             type: typeSelect ? typeSelect.value : 'WindowsVM',
-            cpu_cores: parseInt(cpuInput ? cpuInput.value : 8),
-            ram_gb: parseInt(ramInput ? ramInput.value : 8),
-            disk_size_gb: parseInt(diskInput ? diskInput.value : 64)
+            cpu_cores: parseInt(cpuInput ? cpuInput.value : 8) || 8,
+            ram_gb: parseInt(ramInput ? ramInput.value : 8) || 8,
+            disk_size_gb: parseInt(diskInput ? diskInput.value : 64) || 64
           };
+          
+          // Preserve network assignment if it exists
+          const dataIndex = parseInt(item.dataset.index);
+          if (!isNaN(dataIndex) && this.environmentData.services[dataIndex]) {
+            serviceData.network = this.environmentData.services[dataIndex].network;
+          }
+          
+          savedServices.push(serviceData);
         });
+        
+        this.environmentData.services = savedServices;
         break;
       case 2:
         // Save network data and assignments
@@ -499,6 +587,11 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   addService() {
+    // Save current form data before re-rendering
+    if (this.currentStep === 1) {
+      this.saveCurrentStepData();
+    }
+
     const typeKeys = Object.keys(serviceTypeRegistry.types);
     if (typeKeys.length === 0) return;
 
@@ -518,6 +611,11 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   removeService(index) {
+    // Save current form data before re-rendering
+    if (this.currentStep === 1) {
+      this.saveCurrentStepData();
+    }
+
     if (index >= 0 && index < this.environmentData.services.length) {
       const service = this.environmentData.services[index];
       delete this.environmentData.tools[service.name];
@@ -527,6 +625,11 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   addNetwork() {
+    // Save current form data before re-rendering
+    if (this.currentStep === 2) {
+      this.saveCurrentStepData();
+    }
+
     this.environmentData.networks.push({
       name: '',
       type: 'user'
@@ -535,6 +638,11 @@ class EnvironmentWizard extends BaseComponent {
   }
 
   removeNetwork(index) {
+    // Save current form data before re-rendering
+    if (this.currentStep === 2) {
+      this.saveCurrentStepData();
+    }
+
     if (index >= 0 && index < this.environmentData.networks.length) {
       const network = this.environmentData.networks[index];
       // Remove network assignments from services
