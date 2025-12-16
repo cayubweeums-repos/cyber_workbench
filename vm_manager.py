@@ -91,19 +91,15 @@ class VMManager:
         List all VM names by scanning the vms directory.
         
         Args:
-            exclude_environments: If True, exclude VMs in environment directories
+            exclude_environments: If True, only list VMs from the current vms_dir.
+                                 Note: Environment VMs are stored in environments/{env-name}/vms/,
+                                 so they are naturally separated from main vms/ directory.
+                                 This parameter is mainly for API consistency.
         """
         vms = []
         if self.vms_dir.exists():
             for item in self.vms_dir.iterdir():
                 if item.is_dir() and item.name != "shared":
-                    # Skip environment directories if excluding
-                    if exclude_environments:
-                        # Check if this is an environment directory (contains environments/ subdir)
-                        env_dir = self.repo_root / "environments" / item.name
-                        if env_dir.exists():
-                            continue
-                    
                     config_file = item / "config.yaml"
                     if config_file.exists():
                         vms.append(item.name)

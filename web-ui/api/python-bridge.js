@@ -122,8 +122,16 @@ sys.path.insert(0, '${REPO_ROOT}')
 from ${moduleName} import ${className}
 
 try:
-    instance = ${className}(**${JSON.stringify(instanceArgs)})
-    result = instance.${methodName}(**${JSON.stringify(methodArgs)})
+    import base64
+    instance_args_b64 = '${Buffer.from(JSON.stringify(instanceArgs)).toString('base64')}'
+    instance_args_json = base64.b64decode(instance_args_b64).decode('utf-8')
+    instance_args = json.loads(instance_args_json)
+    instance = ${className}(**instance_args)
+    
+    method_args_b64 = '${Buffer.from(JSON.stringify(methodArgs)).toString('base64')}'
+    method_args_json = base64.b64decode(method_args_b64).decode('utf-8')
+    method_args = json.loads(method_args_json)
+    result = instance.${methodName}(**method_args)
     if isinstance(result, bool):
         output = {"success": result}
     elif isinstance(result, (list, dict)):
