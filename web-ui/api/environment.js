@@ -208,26 +208,19 @@ async function startEnvironment(req, res) {
       });
       
       const networkConfigs = {};
+      const sudoPassword = getSudoPassword();
+      
       for (const network of config.networks) {
         const isolated = network.isolated || false;
         
-        // Set sudo password for network manager
-        const sudoPassword = getSudoPassword();
-        if (sudoPassword) {
-          await callPythonInstanceMethod(
-            'network_manager',
-            'NetworkManager',
-            { repo_root: REPO_ROOT },
-            'set_sudo_password',
-            { password: sudoPassword }
-          );
-        }
-        
-        // Create bridge network
+        // Create bridge network - pass sudo password during initialization
         const networkResult = await callPythonInstanceMethod(
           'network_manager',
           'NetworkManager',
-          { repo_root: REPO_ROOT },
+          { 
+            repo_root: REPO_ROOT,
+            sudo_password: sudoPassword || null
+          },
           'create_bridge_network',
           {
             network_name: network.name,

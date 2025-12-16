@@ -11,11 +11,18 @@ import ipaddress
 class NetworkManager:
     """Manages bridge and TAP interfaces for environment networking."""
     
-    def __init__(self, repo_root: str):
+    def __init__(self, repo_root: str, sudo_password: Optional[str] = None):
+        """
+        Initialize NetworkManager.
+        
+        Args:
+            repo_root: Root directory of the repository
+            sudo_password: Optional sudo password for network operations
+        """
         self.repo_root = Path(repo_root)
         self.networks_dir = self.repo_root / "networks"
         self.networks_dir.mkdir(exist_ok=True)
-        self.sudo_password: Optional[str] = None
+        self.sudo_password: Optional[str] = sudo_password
     
     def set_sudo_password(self, password: str):
         """Store sudo password for network operations."""
@@ -58,16 +65,19 @@ class NetworkManager:
         Returns:
             True if successful, False otherwise
         """
-        system = platform.system()
-        
-        if system == "Darwin":
-            # macOS uses bridge interfaces differently
-            return self._create_macos_bridge(network_name, subnet, isolated)
-        elif system == "Linux":
-            return self._create_linux_bridge(network_name, subnet, isolated)
-        else:
-            print(f"Unsupported OS for bridge networking: {system}")
-            return False
+        try:
+            system = platform.system()
+            
+            if system == "Darwin":
+                # macOS uses bridge interfaces differently
+                return self._create_macos_bridge(network_name, subnet, isolated)
+            elif system == "Linux":
+                return self._create_linux_bridge(network_name, subnet, isolated)
+            else:
+                raise RuntimeError(f"Unsupported OS for bridge networking: {system}")
+        except Exception as e:
+            # Don't print to stdout - let the caller handle errors
+            raise RuntimeError(f"Failed to create bridge network: {str(e)}")
     
     def _create_macos_bridge(self, network_name: str, subnet: str = None, isolated: bool = False) -> bool:
         """Create bridge on macOS using bridge-utils or manual configuration."""
@@ -76,7 +86,8 @@ class NetworkManager:
         # Check if bridge already exists
         result = self._run_command(["ifconfig", bridge_name], use_sudo=False)
         if result.returncode == 0:
-            print(f"Bridge {bridge_name} already exists")
+            # Bridge already exists, just save config and return
+            self._save_network_config(network_name, bridge_name, subnet or self._generate_subnet(network_name), isolated)
             return True
         
         # Generate subnet if not provided
@@ -88,8 +99,7 @@ class NetworkManager:
             network = ipaddress.ip_network(subnet, strict=False)
             gateway_ip = str(network.network_address + 1)
         except ValueError as e:
-            print(f"Invalid subnet: {e}")
-            return False
+            raise ValueError(f"Invalid subnet: {e}")
         
         try:
             # Create bridge interface
@@ -99,8 +109,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to create bridge: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to create bridge: {result.stderr}")
             
             # Configure bridge IP
             result = self._run_command([
@@ -108,8 +117,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to configure bridge IP: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to configure bridge IP: {result.stderr}")
             
             # Bring bridge up
             result = self._run_command([
@@ -117,8 +125,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to bring bridge up: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to bring bridge up: {result.stderr}")
             
             # If not isolated, set up NAT (internet access)
             if not isolated:
@@ -126,21 +133,14 @@ class NetworkManager:
                 self._run_command([
                     "sysctl", "-w", "net.inet.ip.forwarding=1"
                 ], use_sudo=True)
-                
-                # Set up NAT using pfctl (macOS firewall)
-                # This is complex on macOS, so we'll use a simpler approach
-                # For now, we'll just enable forwarding and let the system handle it
-                print(f"Bridge {bridge_name} created with internet access")
-            else:
-                print(f"Bridge {bridge_name} created (isolated, no internet)")
             
             # Save network config
             self._save_network_config(network_name, bridge_name, subnet, isolated)
             
             return True
         except Exception as e:
-            print(f"Error creating bridge: {e}")
-            return False
+            # Re-raise with context
+            raise RuntimeError(f"Error creating macOS bridge: {str(e)}")
     
     def _create_linux_bridge(self, network_name: str, subnet: str = None, isolated: bool = False) -> bool:
         """Create bridge on Linux using ip/brctl."""
@@ -149,7 +149,8 @@ class NetworkManager:
         # Check if bridge already exists
         result = self._run_command(["ip", "link", "show", bridge_name], use_sudo=False)
         if result.returncode == 0:
-            print(f"Bridge {bridge_name} already exists")
+            # Bridge already exists, just save config and return
+            self._save_network_config(network_name, bridge_name, subnet or self._generate_subnet(network_name), isolated)
             return True
         
         # Generate subnet if not provided
@@ -161,8 +162,7 @@ class NetworkManager:
             network = ipaddress.ip_network(subnet, strict=False)
             gateway_ip = str(network.network_address + 1)
         except ValueError as e:
-            print(f"Invalid subnet: {e}")
-            return False
+            raise ValueError(f"Invalid subnet: {e}")
         
         try:
             # Create bridge
@@ -171,8 +171,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to create bridge: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to create bridge: {result.stderr}")
             
             # Configure bridge IP
             result = self._run_command([
@@ -180,8 +179,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to configure bridge IP: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to configure bridge IP: {result.stderr}")
             
             # Bring bridge up
             result = self._run_command([
@@ -189,8 +187,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to bring bridge up: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to bring bridge up: {result.stderr}")
             
             # If not isolated, set up NAT (internet access)
             if not isolated:
@@ -221,18 +218,14 @@ class NetworkManager:
                             "iptables", "-t", "nat", "-A", "POSTROUTING",
                             "-s", str(network), "-o", default_if, "-j", "MASQUERADE"
                         ], use_sudo=True)
-                
-                print(f"Bridge {bridge_name} created with internet access")
-            else:
-                print(f"Bridge {bridge_name} created (isolated, no internet)")
             
             # Save network config
             self._save_network_config(network_name, bridge_name, subnet, isolated)
             
             return True
         except Exception as e:
-            print(f"Error creating bridge: {e}")
-            return False
+            # Re-raise with context
+            raise RuntimeError(f"Error creating Linux bridge: {str(e)}")
     
     def _generate_subnet(self, network_name: str) -> str:
         """Generate a unique subnet based on network name hash."""
@@ -285,8 +278,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to create TAP: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to create TAP: {result.stderr}")
             
             # Bring TAP up
             result = self._run_command([
@@ -294,8 +286,7 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                print(f"Failed to bring TAP up: {result.stderr}")
-                return False
+                raise RuntimeError(f"Failed to bring TAP up: {result.stderr}")
             
             # Add TAP to bridge
             result = self._run_command([
@@ -343,8 +334,7 @@ class NetworkManager:
             
             return result.returncode == 0
         except Exception as e:
-            print(f"Error deleting bridge: {e}")
-            return False
+            raise RuntimeError(f"Error deleting bridge: {e}")
     
     def list_networks(self) -> List[str]:
         """List all managed networks."""

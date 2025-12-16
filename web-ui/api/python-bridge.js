@@ -145,7 +145,9 @@ try:
 except Exception as e:
     import traceback
     error_details = traceback.format_exc()
-    print(json.dumps({"success": False, "error": str(e), "traceback": error_details}), file=sys.stderr)
+    # Only output JSON to stdout - errors go to stderr for logging
+    error_output = json.dumps({"success": False, "error": str(e), "traceback": error_details})
+    print(error_output, file=sys.stderr)
     print(json.dumps({"success": False, "error": str(e)}))
     sys.exit(1)
 `;
