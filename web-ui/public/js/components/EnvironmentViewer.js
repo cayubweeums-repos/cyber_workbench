@@ -60,6 +60,9 @@ class EnvironmentViewer extends BaseComponent {
     this.container.style.display = 'block';
     
     try {
+      // Wait for vis-network to be available
+      await this.waitForVisNetwork();
+      
       // Load environment data
       this.environment = await environmentService.getFullEnvironmentData(environmentName);
       if (!this.environment) {
@@ -84,6 +87,45 @@ class EnvironmentViewer extends BaseComponent {
         container.innerHTML = `<div class="empty-state"><p style="color: #ff4444;">Failed to load environment: ${error.message}</p></div>`;
       }
     }
+  }
+
+  waitForVisNetwork(maxWait = 5000) {
+    return new Promise((resolve, reject) => {
+      // Check if already available
+      if (this.isVisNetworkAvailable()) {
+        resolve();
+        return;
+      }
+      
+      // Wait for it to load
+      let attempts = 0;
+      const maxAttempts = maxWait / 100;
+      const interval = setInterval(() => {
+        attempts++;
+        if (this.isVisNetworkAvailable()) {
+          clearInterval(interval);
+          resolve();
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          reject(new Error('vis-network library failed to load within timeout'));
+        }
+      }, 100);
+    });
+  }
+
+  isVisNetworkAvailable() {
+    if (typeof vis !== 'undefined') {
+      if (vis.network && vis.network.Network) {
+        return true;
+      } else if (vis.Network) {
+        return true;
+      } else if (window.vis && window.vis.network && window.vis.network.Network) {
+        return true;
+      } else if (window.vis && window.vis.Network) {
+        return true;
+      }
+    }
+    return false;
   }
 
   renderNetwork() {
@@ -186,29 +228,50 @@ class EnvironmentViewer extends BaseComponent {
     };
     
     // Initialize vis-network
-    if (typeof vis !== 'undefined' && vis.network) {
-      this.network = new vis.network.Network(networkDiv, data, options);
-      
-      // Handle node click
-      this.network.on('click', (params) => {
-        if (params.nodes.length > 0) {
-          const nodeId = params.nodes[0];
-          const node = nodes.find(n => n.id === nodeId);
-          if (node) {
-            this.showNodeDetails(node.data.service);
+    // Check for different possible export structures
+    let NetworkConstructor = null;
+    if (typeof vis !== 'undefined') {
+      // Try different possible export paths
+      if (vis.network && vis.network.Network) {
+        NetworkConstructor = vis.network.Network;
+      } else if (vis.Network) {
+        NetworkConstructor = vis.Network;
+      } else if (window.vis && window.vis.network && window.vis.network.Network) {
+        NetworkConstructor = window.vis.network.Network;
+      } else if (window.vis && window.vis.Network) {
+        NetworkConstructor = window.vis.Network;
+      }
+    }
+    
+    if (NetworkConstructor) {
+      try {
+        this.network = new NetworkConstructor(networkDiv, data, options);
+        
+        // Handle node click
+        this.network.on('click', (params) => {
+          if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const node = nodes.find(n => n.id === nodeId);
+            if (node) {
+              this.showNodeDetails(node.data.service);
+            }
+          } else {
+            this.hideNodeDetails();
           }
-        } else {
-          this.hideNodeDetails();
-        }
-      });
-      
-      // Handle edge hover
-      this.network.on('hoverEdge', (params) => {
-        // Could show network name on hover
-      });
+        });
+        
+        // Handle edge hover
+        this.network.on('hoverEdge', (params) => {
+          // Could show network name on hover
+        });
+      } catch (error) {
+        console.error('Error creating vis-network:', error);
+        networkDiv.innerHTML = `<div class="empty-state"><p style="color: #ff4444;">Failed to create network visualization: ${error.message}</p></div>`;
+      }
     } else {
       // Fallback if vis-network not loaded
-      networkDiv.innerHTML = '<div class="empty-state"><p>vis-network library not loaded. Please install vis-network package.</p></div>';
+      console.error('vis-network not available. typeof vis:', typeof vis, 'vis object:', vis);
+      networkDiv.innerHTML = '<div class="empty-state"><p style="color: #ff4444;">vis-network library not loaded. Please check that the library is properly included.</p></div>';
     }
   }
 

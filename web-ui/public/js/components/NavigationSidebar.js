@@ -13,16 +13,19 @@ class NavigationSidebar extends BaseComponent {
   render() {
     if (!this.container) return;
     
+    const envLabel = this.isExpanded ? 'Environments' : 'E';
+    const vmLabel = this.isExpanded ? 'VMs' : 'V';
+    
     this.container.innerHTML = `
       <nav class="nav-sidebar ${this.isExpanded ? 'expanded' : 'collapsed'}">
         <button class="nav-toggle" id="nav-toggle-btn" title="${this.isExpanded ? 'Collapse' : 'Expand'}">
-          <span class="nav-toggle-icon">${this.isExpanded ? '◀' : '▶'}</span>
+          <span class="nav-toggle-icon">${this.isExpanded ? '<' : '>'}</span>
         </button>
         <div class="nav-item active" data-view="environments" title="Environments">
-          <span class="nav-label">Environments</span>
+          <span class="nav-label">${envLabel}</span>
         </div>
         <div class="nav-item" data-view="vms" title="VMs">
-          <span class="nav-label">VMs</span>
+          <span class="nav-label">${vmLabel}</span>
         </div>
       </nav>
     `;
@@ -65,6 +68,7 @@ class NavigationSidebar extends BaseComponent {
     const sidebar = this.container.querySelector('.nav-sidebar');
     const toggleBtn = this.container.querySelector('#nav-toggle-btn');
     const toggleIcon = this.container.querySelector('.nav-toggle-icon');
+    const navLabels = this.container.querySelectorAll('.nav-label');
     
     if (sidebar) {
       if (this.isExpanded) {
@@ -84,6 +88,17 @@ class NavigationSidebar extends BaseComponent {
     
     if (toggleIcon) {
       toggleIcon.textContent = this.isExpanded ? '<' : '>';
+    }
+    
+    // Update nav labels to show first letter when collapsed
+    if (navLabels.length >= 2) {
+      if (this.isExpanded) {
+        navLabels[0].textContent = 'Environments';
+        navLabels[1].textContent = 'VMs';
+      } else {
+        navLabels[0].textContent = 'E';
+        navLabels[1].textContent = 'V';
+      }
     }
     
     // Update main content margin

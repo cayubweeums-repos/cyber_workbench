@@ -204,6 +204,7 @@ class EnvironmentWizard extends BaseComponent {
 
     return `
       <h3>Service Selection</h3>
+      <p class="wizard-step-description">Add services (VMs, containers, etc.) to your environment. Configure each service's name, type, and resource allocation.</p>
       <div class="form-group">
         <label for="env-name">Environment Name</label>
         <input type="text" id="env-name" value="${this.environmentData.name}" placeholder="Enter environment name" required>
@@ -233,10 +234,12 @@ class EnvironmentWizard extends BaseComponent {
             <label>Assign Services</label>
             <div class="network-services">
               ${this.environmentData.services.map((service, sIndex) => `
-                <label>
-                  <input type="checkbox" class="network-service" data-network="${index}" data-service="${sIndex}" ${service.network === network.name ? 'checked' : ''}>
-                  ${service.name || `Service ${sIndex + 1}`}
-                </label>
+                <div class="network-service-row">
+                  <span class="network-service-name">${service.name || `Service ${sIndex + 1}`}</span>
+                  <label class="network-service-checkbox">
+                    <input type="checkbox" class="network-service" data-network="${index}" data-service="${sIndex}" ${service.network === network.name ? 'checked' : ''}>
+                  </label>
+                </div>
               `).join('')}
             </div>
           </div>
@@ -246,6 +249,7 @@ class EnvironmentWizard extends BaseComponent {
 
     return `
       <h3>Network Configuration</h3>
+      <p class="wizard-step-description">Create networks and assign services to them. Services on the same network can communicate with each other.</p>
       <div class="wizard-networks">
         ${networksHTML || '<p class="empty-state">No networks added yet. Click "Add Network" to get started.</p>'}
       </div>
@@ -305,15 +309,17 @@ class EnvironmentWizard extends BaseComponent {
         }
 
         toolItemsHTML += `
-          <div class="wizard-tool-item">
-            <label>
-              <input type="checkbox" 
-                     class="tool-enabled" 
-                     data-service="${sIndex}" 
-                     data-tool="${tool.name}"
-                     ${isSelected ? 'checked' : ''}>
-              <strong>${tool.name}</strong>
-            </label>
+          <div class="wizard-tool-item ${isSelected ? 'tool-selected' : ''}">
+            <div class="tool-header">
+              <label class="tool-checkbox-label">
+                <input type="checkbox" 
+                       class="tool-enabled" 
+                       data-service="${sIndex}" 
+                       data-tool="${tool.name}"
+                       ${isSelected ? 'checked' : ''}>
+                <strong class="tool-name">${tool.name}</strong>
+              </label>
+            </div>
             <p class="tool-description">${tool.description}</p>
             ${isSelected ? `<div class="tool-inputs">${inputFieldsHTML}</div>` : ''}
           </div>
@@ -330,6 +336,7 @@ class EnvironmentWizard extends BaseComponent {
 
     return `
       <h3>Tool Configuration</h3>
+      <p class="wizard-step-description">Select and configure tools to install on each service. Tools are software or agents that will be installed when the environment is started (e.g., security agents, monitoring tools).</p>
       <div class="wizard-tools">
         ${toolsHTML || '<p class="empty-state">No services configured. Go back to add services.</p>'}
       </div>
@@ -345,6 +352,7 @@ class EnvironmentWizard extends BaseComponent {
 
     return `
       <h3>Review</h3>
+      <p class="wizard-step-description">Review your environment configuration before creating it. You can go back to make changes if needed.</p>
       <div class="review-section">
         <h4>Environment: ${this.environmentData.name}</h4>
         <div class="review-item">

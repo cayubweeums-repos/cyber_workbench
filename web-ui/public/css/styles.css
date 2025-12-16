@@ -794,8 +794,19 @@ body.advanced-mode * {
 }
 
 .wizard-content h3 {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   color: var(--color-accent);
+}
+
+.wizard-step-description {
+  margin-bottom: 20px;
+  padding: 12px;
+  background-color: #1e1e1e;
+  border-left: 3px solid var(--color-accent);
+  border-radius: 4px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .wizard-services,
@@ -842,28 +853,49 @@ body.advanced-mode * {
 
 .wizard-tool-item {
   margin: 15px 0;
-  padding: 10px;
+  padding: 15px;
   background-color: #262626;
-  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 
-.wizard-tool-item label {
+.wizard-tool-item.tool-selected {
+  border-color: var(--color-accent);
+  background-color: #2a2a2a;
+}
+
+.wizard-tool-item:hover {
+  border-color: var(--color-accent-dark);
+}
+
+.tool-header {
+  margin-bottom: 8px;
+}
+
+.tool-checkbox-label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   cursor: pointer;
+  font-size: 16px;
+}
+
+.tool-name {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .tool-description {
-  margin: 8px 0 0 24px;
+  margin: 8px 0 0 0;
   font-size: 13px;
   color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .tool-inputs {
-  margin-top: 10px;
-  margin-left: 24px;
-  padding-top: 10px;
+  margin-top: 15px;
+  padding-top: 15px;
   border-top: 1px solid var(--color-border);
 }
 
@@ -874,11 +906,23 @@ body.advanced-mode * {
   margin-top: 10px;
 }
 
-.network-services label {
+.network-service-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.network-service-name {
+  flex: 1;
+  color: var(--color-text);
+}
+
+.network-service-checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
   cursor: pointer;
+  margin: 0;
 }
 
 .review-section {
