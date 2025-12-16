@@ -7,23 +7,53 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>VM Manager</h1>
-            <div class="header-actions">
-                <a href="/docs" class="btn btn-secondary" target="_blank" id="docs-link">Docs</a>
-                <label class="advanced-toggle">
-                    <input type="checkbox" id="advanced-mode-toggle">
-                    <span>Advanced Mode</span>
-                </label>
-                <button class="btn" id="create-vm-btn">Create VM</button>
-            </div>
-        </div>
+    <div class="app-layout">
+        <!-- Navigation Sidebar -->
+        <div id="nav-sidebar-container"></div>
+        
+        <div class="main-content">
+            <div class="container">
+                <!-- Environments View -->
+                <div id="environments-view" class="view-section">
+                    <div class="header">
+                        <h1>Environments</h1>
+                        <div class="header-actions">
+                            <a href="/docs" class="btn btn-secondary" target="_blank" id="docs-link">Docs</a>
+                            <label class="advanced-toggle">
+                                <input type="checkbox" id="advanced-mode-toggle">
+                                <span>Advanced Mode</span>
+                            </label>
+                            <button class="btn" id="create-environment-btn">Create Environment</button>
+                        </div>
+                    </div>
+                    <div id="environment-list-container">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Loading environments...</p>
+                        </div>
+                    </div>
+                </div>
 
-        <div id="vm-list-container">
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Loading VMs...</p>
+                <!-- VMs View -->
+                <div id="vms-view" class="view-section" style="display: none;">
+                    <div class="header">
+                        <h1>VM Manager</h1>
+                        <div class="header-actions">
+                            <a href="/docs" class="btn btn-secondary" target="_blank" id="docs-link-vms">Docs</a>
+                            <label class="advanced-toggle">
+                                <input type="checkbox" id="advanced-mode-toggle-vms">
+                                <span>Advanced Mode</span>
+                            </label>
+                            <button class="btn" id="create-vm-btn">Create VM</button>
+                        </div>
+                    </div>
+                    <div id="vm-list-container">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p>Loading VMs...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -79,6 +109,21 @@
         </div>
     </div>
 
+    <!-- Create Environment Wizard -->
+    <div class="dialog-overlay" id="environment-wizard">
+        <div class="dialog-content wizard-dialog">
+            <h2>Create Environment</h2>
+            <div class="wizard-progress">Step 1 of 4</div>
+            <div class="wizard-content"></div>
+            <div class="dialog-actions">
+                <button class="btn btn-secondary" data-action="cancel">Cancel</button>
+                <button class="btn btn-secondary" data-action="back" style="display: none;">Back</button>
+                <button class="btn" data-action="next">Next</button>
+                <button class="btn" data-action="confirm" style="display: none;">Create</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit VM Dialog -->
     <div class="dialog-overlay" id="edit-dialog">
         <div class="dialog-content">
@@ -122,6 +167,11 @@
         </div>
     </div>
 
+    <!-- Environment Viewer -->
+    <div class="viewer-container" id="environment-viewer-container" style="display: none;">
+        <!-- Content will be rendered by EnvironmentViewer component -->
+    </div>
+
     <!-- VM Viewer -->
     <div class="viewer-container" id="viewer-container">
         <div class="viewer-header">
@@ -152,18 +202,30 @@
     <!-- noVNC is served by Express on port 3000 -->
     <!-- Express serves noVNC files and proxies WebSocket connections to websockify -->
     <!-- We use a standalone viewer.html page that loads noVNC in an iframe -->
+    <!-- vis-network for environment visualization -->
+    <script src="/node_modules/vis-network/dist/vis-network.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="/node_modules/vis-network/dist/vis-network.min.css">
     <!-- Core -->
     <script src="js/core/APIClient.js"></script>
+    <script src="js/core/ServiceTypeRegistry.js"></script>
+    <script src="js/core/ToolRegistry.js"></script>
     <!-- Models -->
     <script src="js/models/VM.js"></script>
+    <script src="js/models/Environment.js"></script>
     <!-- Services -->
     <script src="js/services/VMService.js"></script>
+    <script src="js/services/EnvironmentService.js"></script>
     <script src="js/services/ServiceRegistry.js"></script>
     <!-- Components -->
     <script src="js/components/BaseComponent.js"></script>
+    <script src="js/components/NavigationSidebar.js"></script>
     <script src="js/components/VMCard.js"></script>
     <script src="js/components/VMList.js"></script>
     <script src="js/components/VMDialog.js"></script>
+    <script src="js/components/EnvironmentCard.js"></script>
+    <script src="js/components/EnvironmentList.js"></script>
+    <script src="js/components/EnvironmentWizard.js"></script>
+    <script src="js/components/EnvironmentViewer.js"></script>
     <!-- Viewer -->
     <script src="js/viewer.js"></script>
     <!-- Main App -->

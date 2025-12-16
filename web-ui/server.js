@@ -50,6 +50,13 @@ if (!require('fs').existsSync(novncDir)) {
   console.log(`noVNC files served from: ${novncDir}`);
 }
 
+// Serve vis-network from node_modules
+const visNetworkDir = path.join(__dirname, 'node_modules', 'vis-network', 'dist');
+if (require('fs').existsSync(visNetworkDir)) {
+  app.use('/node_modules/vis-network/dist', express.static(visNetworkDir));
+  console.log(`vis-network served from: ${visNetworkDir}`);
+}
+
 // Store proxy instances for WebSocket upgrades
 const proxyInstances = new Map();
 

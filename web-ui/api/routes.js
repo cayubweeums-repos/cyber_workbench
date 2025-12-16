@@ -4,6 +4,7 @@
 
 const express = require('express');
 const vmRoutes = require('./vm');
+const environmentRoutes = require('./environment');
 const operations = require('./operations');
 const { getProgress } = require('./progress');
 const docsRoutes = require('./docs');
@@ -75,6 +76,15 @@ function setupRoutes(app) {
     const progress = getProgress(name);
     res.json({ success: true, progress });
   });
+  
+  // Environment management routes
+  router.get('/environments', environmentRoutes.listEnvironments);
+  router.get('/environments/:name', environmentRoutes.getEnvironment);
+  router.post('/environments', environmentRoutes.createEnvironment);
+  router.put('/environments/:name', environmentRoutes.updateEnvironment);
+  router.delete('/environments/:name', environmentRoutes.deleteEnvironment);
+  router.post('/environments/:name/start', environmentRoutes.startEnvironment);
+  router.post('/environments/:name/stop', environmentRoutes.stopEnvironment);
   
   // Documentation routes
   router.get('/docs/list', docsRoutes.listDocs);
