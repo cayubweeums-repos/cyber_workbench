@@ -34,21 +34,22 @@ class NetworkManager:
     
     def _run_command(self, cmd: List[str], use_sudo: bool = False, **kwargs):
         """Run subprocess command, optionally with sudo."""
+        # Ensure text mode is set (default to True)
+        if "text" not in kwargs:
+            kwargs["text"] = True
+        
         if use_sudo:
             self._ensure_sudo_password()
             kwargs = kwargs.copy()
             input_data = kwargs.pop("input", "")
             if input_data is None:
                 input_data = ""
-            if not kwargs.get("text"):
-                kwargs["text"] = True
             kwargs["input"] = f"{self.sudo_password}\n{input_data}"
             cmd = ["sudo", "-S"] + cmd
         
         result = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
             **kwargs
         )
         return result
