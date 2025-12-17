@@ -81,7 +81,7 @@ class NetworkManager:
             raise RuntimeError(f"Failed to create bridge network: {str(e)}")
     
     def _create_macos_bridge(self, network_name: str, subnet: str = None, isolated: bool = False) -> bool:
-        """Create bridge on macOS using bridge-utils or manual configuration."""
+        """Create bridge on macOS using ifconfig."""
         bridge_name = f"br-{network_name}"
         
         # Check if bridge already exists
@@ -102,23 +102,70 @@ class NetworkManager:
         except ValueError as e:
             raise ValueError(f"Invalid subnet: {e}")
         
+        def _clean_stderr(stderr: str) -> str:
+            """Remove sudo password prompt from stderr output."""
+            if stderr:
+                # Remove "Password:" prompt that sudo -S outputs to stderr
+                stderr = stderr.replace("Password:", "").strip()
+                # Remove any leading/trailing whitespace
+                return stderr.strip()
+            return stderr
+        
         try:
-            # Create bridge interface
-            # On macOS, we use ifconfig to create bridge
+            # Get list of existing bridges before creation
+            result = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            existing_interfaces = set()
+            if result.returncode == 0 and result.stdout:
+                existing_interfaces = set(result.stdout.split())
+            
+            # Create bridge interface with auto-generated name
+            # On macOS, ifconfig bridge create creates a bridge with auto-generated name (bridge0, bridge1, etc.)
             result = self._run_command([
-                "ifconfig", "bridge", "create", "name", bridge_name
+                "ifconfig", "bridge", "create"
             ], use_sudo=True)
             
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to create bridge: {result.stderr}")
+                stderr = _clean_stderr(result.stderr)
+                raise RuntimeError(f"Failed to create bridge: {stderr}")
+            
+            # Find the newly created bridge by comparing interface lists
+            result = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            if result.returncode != 0:
+                raise RuntimeError("Failed to list interfaces after bridge creation")
+            
+            new_interfaces = set(result.stdout.split())
+            created_bridge = None
+            
+            # Find the bridge that was just created (starts with "bridge" and wasn't in the original list)
+            for interface in new_interfaces:
+                if interface.startswith("bridge") and interface not in existing_interfaces:
+                    created_bridge = interface
+                    break
+            
+            if not created_bridge:
+                raise RuntimeError("Failed to identify newly created bridge interface")
+            
+            # Rename the bridge to our desired name
+            result = self._run_command([
+                "ifconfig", created_bridge, "name", bridge_name
+            ], use_sudo=True)
+            
+            if result.returncode != 0:
+                stderr = _clean_stderr(result.stderr)
+                # Try to clean up the auto-created bridge
+                self._run_command(["ifconfig", created_bridge, "destroy"], use_sudo=True)
+                raise RuntimeError(f"Failed to rename bridge to {bridge_name}: {stderr}")
             
             # Configure bridge IP
             result = self._run_command([
-                "ifconfig", bridge_name, gateway_ip, "netmask", str(network.netmask)
+                "ifconfig", bridge_name, "inet", gateway_ip, "netmask", str(network.netmask)
             ], use_sudo=True)
             
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to configure bridge IP: {result.stderr}")
+                stderr = _clean_stderr(result.stderr)
+                # Clean up on failure
+                self._run_command(["ifconfig", bridge_name, "destroy"], use_sudo=True)
+                raise RuntimeError(f"Failed to configure bridge IP: {stderr}")
             
             # Bring bridge up
             result = self._run_command([
@@ -126,7 +173,10 @@ class NetworkManager:
             ], use_sudo=True)
             
             if result.returncode != 0:
-                raise RuntimeError(f"Failed to bring bridge up: {result.stderr}")
+                stderr = _clean_stderr(result.stderr)
+                # Clean up on failure
+                self._run_command(["ifconfig", bridge_name, "destroy"], use_sudo=True)
+                raise RuntimeError(f"Failed to bring bridge up: {stderr}")
             
             # If not isolated, set up NAT (internet access)
             if not isolated:
