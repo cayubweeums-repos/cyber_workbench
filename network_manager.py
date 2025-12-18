@@ -82,14 +82,24 @@ class NetworkManager:
     
     def _create_macos_bridge(self, network_name: str, subnet: str = None, isolated: bool = False) -> bool:
         """Create bridge on macOS using ifconfig."""
-        bridge_name = f"br-{network_name}"
+        # NOTE: On macOS, bridge interfaces are created as bridge0/bridge1/...
+        # Renaming to arbitrary names (e.g. "br-main") is not reliably supported and can fail
+        # with: "ifconfig: name: bad value". We therefore persist the actual bridge interface
+        # name in our network config file and reuse it on subsequent runs.
+        bridge_name = None
+        
+        # If we already have a saved config, prefer that bridge name
+        existing_config = self.get_network_config(network_name)
+        if existing_config and existing_config.get("bridge_name"):
+            bridge_name = existing_config["bridge_name"]
         
         # Check if bridge already exists
-        result = self._run_command(["ifconfig", bridge_name], use_sudo=False)
-        if result.returncode == 0:
-            # Bridge already exists, just save config and return
-            self._save_network_config(network_name, bridge_name, subnet or self._generate_subnet(network_name), isolated)
-            return True
+        if bridge_name:
+            result = self._run_command(["ifconfig", bridge_name], use_sudo=False)
+            if result.returncode == 0:
+                # Bridge already exists, just save config and return
+                self._save_network_config(network_name, bridge_name, subnet or self._generate_subnet(network_name), isolated)
+                return True
         
         # Generate subnet if not provided
         if not subnet:
@@ -112,12 +122,6 @@ class NetworkManager:
             return stderr
         
         try:
-            # Get list of existing bridges before creation
-            result = self._run_command(["ifconfig", "-l"], use_sudo=False)
-            existing_interfaces = set()
-            if result.returncode == 0 and result.stdout:
-                existing_interfaces = set(result.stdout.split())
-            
             # Create bridge interface with auto-generated name
             # On macOS, ifconfig bridge create creates a bridge with auto-generated name (bridge0, bridge1, etc.)
             result = self._run_command([
@@ -128,33 +132,28 @@ class NetworkManager:
                 stderr = _clean_stderr(result.stderr)
                 raise RuntimeError(f"Failed to create bridge: {stderr}")
             
-            # Find the newly created bridge by comparing interface lists
-            result = self._run_command(["ifconfig", "-l"], use_sudo=False)
-            if result.returncode != 0:
-                raise RuntimeError("Failed to list interfaces after bridge creation")
-            
-            new_interfaces = set(result.stdout.split())
+            # macOS often prints the created interface name (e.g. "bridge0") to stdout.
             created_bridge = None
+            if result.stdout:
+                created_bridge = result.stdout.strip().splitlines()[-1].strip()
             
-            # Find the bridge that was just created (starts with "bridge" and wasn't in the original list)
-            for interface in new_interfaces:
-                if interface.startswith("bridge") and interface not in existing_interfaces:
-                    created_bridge = interface
-                    break
-            
+            # If stdout didn't include it, fallback to finding the newest bridge interface
             if not created_bridge:
-                raise RuntimeError("Failed to identify newly created bridge interface")
+                list_result = self._run_command(["ifconfig", "-l"], use_sudo=False)
+                if list_result.returncode != 0:
+                    raise RuntimeError("Failed to list interfaces after bridge creation")
+                candidates = [i for i in list_result.stdout.split() if i.startswith("bridge")]
+                if not candidates:
+                    raise RuntimeError("Failed to identify newly created bridge interface")
+                # Prefer highest-numbered bridge (bridge0, bridge1, ...)
+                def _bridge_num(name: str) -> int:
+                    try:
+                        return int(name.replace("bridge", ""))
+                    except Exception:
+                        return -1
+                created_bridge = sorted(candidates, key=_bridge_num)[-1]
             
-            # Rename the bridge to our desired name
-            result = self._run_command([
-                "ifconfig", created_bridge, "name", bridge_name
-            ], use_sudo=True)
-            
-            if result.returncode != 0:
-                stderr = _clean_stderr(result.stderr)
-                # Try to clean up the auto-created bridge
-                self._run_command(["ifconfig", created_bridge, "destroy"], use_sudo=True)
-                raise RuntimeError(f"Failed to rename bridge to {bridge_name}: {stderr}")
+            bridge_name = created_bridge
             
             # Configure bridge IP
             result = self._run_command([
@@ -319,7 +318,7 @@ class NetworkManager:
         if system == "Darwin":
             # macOS TAP interfaces
             result = self._run_command([
-                "ifconfig", "bridge", "addm", tap_name, bridge_name
+                "ifconfig", bridge_name, "addm", tap_name
             ], use_sudo=True)
             return result.returncode == 0
         elif system == "Linux":

@@ -91,9 +91,20 @@
             document.getElementById('viewer-title').textContent = `VM Viewer - ${vmName}`;
             
             // Build noVNC URL - exact same format as test-iframe.html
-            const expressPort = 3000;
-            const websockifyPath = `websockify/${vmName}`;
-            const novncUrl = `http://localhost:${expressPort}/novnc/vnc.html?host=localhost&port=${expressPort}&path=${websockifyPath}&autoconnect=true`;
+            const portParam = urlParams.get('port');
+            const expressPort = (portParam && !isNaN(parseInt(portParam, 10)))
+              ? parseInt(portParam, 10)
+              : (window.location.port ? parseInt(window.location.port, 10) : 3000);
+
+            // Accept explicit websockify path when provided (e.g. environment VMs)
+            let websockifyPath = urlParams.get('path') || urlParams.get('websockifyPath') || `websockify/${vmName}`;
+            // noVNC expects a path WITHOUT a leading slash (it adds it internally)
+            websockifyPath = String(websockifyPath).replace(/^\/+/, '');
+
+            const host = window.location.hostname || 'localhost';
+            const protocol = window.location.protocol || 'http:';
+            const novncBase = `${protocol}//${host}:${expressPort}`;
+            const novncUrl = `${novncBase}/novnc/vnc.html?host=${encodeURIComponent(host)}&port=${expressPort}&path=${encodeURIComponent(websockifyPath)}&autoconnect=true`;
             
             // Set iframe src - exact same as test-iframe.html
             const iframe = document.getElementById('novnc-viewer');

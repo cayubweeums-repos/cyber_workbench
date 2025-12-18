@@ -33,12 +33,16 @@ function callPythonModule(moduleName, functionName, args = {}) {
 import sys
 import json
 import os
+import contextlib
 sys.path.insert(0, '${REPO_ROOT}')
 
 from ${moduleName} import ${functionName}
 
 try:
-    result = ${functionName}(**${JSON.stringify(args)})
+    # IMPORTANT: keep stdout JSON-only for the Node bridge
+    # Redirect any prints from the called function to stderr
+    with contextlib.redirect_stdout(sys.stderr):
+        result = ${functionName}(**${JSON.stringify(args)})
     if isinstance(result, bool):
         output = {"success": result}
     elif isinstance(result, (list, dict)):
@@ -117,6 +121,7 @@ function callPythonInstanceMethod(moduleName, className, instanceArgs, methodNam
 import sys
 import json
 import os
+import contextlib
 sys.path.insert(0, '${REPO_ROOT}')
 
 from ${moduleName} import ${className}
@@ -131,7 +136,10 @@ try:
     method_args_b64 = '${Buffer.from(JSON.stringify(methodArgs)).toString('base64')}'
     method_args_json = base64.b64decode(method_args_b64).decode('utf-8')
     method_args = json.loads(method_args_json)
-    result = instance.${methodName}(**method_args)
+    # IMPORTANT: keep stdout JSON-only for the Node bridge
+    # Redirect any prints from the called method to stderr
+    with contextlib.redirect_stdout(sys.stderr):
+        result = instance.${methodName}(**method_args)
     if isinstance(result, bool):
         output = {"success": result}
     elif isinstance(result, (list, dict)):

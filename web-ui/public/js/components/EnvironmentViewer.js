@@ -12,6 +12,24 @@ class EnvironmentViewer extends BaseComponent {
     this.updateInterval = null;
   }
 
+  isVMService(service) {
+    if (!service) return false;
+    // Backward-compatible default
+    if (service.type === 'WindowsVM') return true;
+
+    // Prefer registry-based detection (supports future VM types)
+    try {
+      if (typeof serviceTypeRegistry !== 'undefined' && serviceTypeRegistry) {
+        const typeConfig = serviceTypeRegistry.get(service.type);
+        return !!(typeConfig && typeConfig.createMethod === 'vm');
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    return false;
+  }
+
   render() {
     if (!this.container) return;
     
@@ -254,8 +272,8 @@ class EnvironmentViewer extends BaseComponent {
             const node = nodes.find(n => n.id === nodeId);
             if (node) {
               const service = node.data.service;
-              // If it's a WindowsVM, open VM viewer
-              if (service.type === 'WindowsVM') {
+              // If it's a VM-backed service, open VM viewer
+              if (this.isVMService(service)) {
                 this.openVMViewer(service.name);
               } else {
                 // For other service types, show details
@@ -328,7 +346,7 @@ class EnvironmentViewer extends BaseComponent {
           </ul>
         </div>
       ` : ''}
-      ${service.type === 'WindowsVM' ? `
+      ${this.isVMService(service) ? `
         <div class="node-detail-item">
           <button class="btn btn-primary btn-small" data-action="open-vm-viewer" data-vm="${service.name}">
             Open VM Viewer
