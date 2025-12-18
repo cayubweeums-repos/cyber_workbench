@@ -1295,14 +1295,11 @@ class VMOperations:
     
     def stop_vm(self, vm_name: str) -> bool:
         """Stop a running VM."""
-        vm_dir = self.vms_dir / vm_name
-        disk_image = vm_dir / "windows.img"
-        
-        if not disk_image.exists():
-            return False
-        
         try:
-            # Find and kill QEMU process
+            # Find and kill QEMU process.
+            # IMPORTANT: Do not require the VM disk to exist under self.vms_dir.
+            # Environment VMs live under environments/<env>/vms/, but the QEMU command line
+            # still includes "windows.img" and the vm_name, so pgrep is sufficient.
             result = subprocess.run(
                 ["pgrep", "-f", f"windows.img.*{vm_name}"],
                 capture_output=True,
@@ -1314,6 +1311,8 @@ class VMOperations:
                 for pid in pids:
                     if pid:
                         subprocess.run(["kill", pid], capture_output=True)
+            else:
+                return False
             
             # Also stop websockify proxy if running
             self.stop_websockify(vm_name)

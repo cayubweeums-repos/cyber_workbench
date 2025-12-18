@@ -8,8 +8,21 @@ const { callPythonInstanceMethod, REPO_ROOT } = require('./python-bridge');
 const operations = require('./operations');
 const { setProgress, clearProgress } = require('./progress');
 const { getSudoPassword } = require('./sudo-password');
+const crypto = require('crypto');
 
 const environmentManager = new EnvironmentManager(REPO_ROOT);
+
+/**
+ * Generate a safe TAP interface name for Linux (<= 15 chars).
+ * On macOS we don't control the tap name (tap0/tap1/...), so this is mainly for Linux.
+ */
+function makeTapName(vmName) {
+  const safe = String(vmName || '').replace(/[^a-zA-Z0-9]/g, '');
+  const prefix = `tap${safe.slice(0, 4)}`;
+  const hash = crypto.createHash('sha1').update(String(vmName || '')).digest('hex').slice(0, 10);
+  // e.g. tapwin1a1b2c3d4e (<= 15)
+  return `${prefix}${hash}`.slice(0, 15);
+}
 
 /**
  * List all environments
@@ -326,7 +339,8 @@ async function startEnvironment(req, res) {
               message: `Preparing ISO for ${service.name}...`,
               percent: Math.floor(serviceProgress + 15)
             });
-            await operations.prepareISOForVM(service.name, envVmsDir);
+            // prepareISOForVM(vmName, providedSudoPassword = null, vmsDir = null)
+            await operations.prepareISOForVM(service.name, sudoPassword || null, envVmsDir);
           }
           
           // Get network config for this service
@@ -334,23 +348,26 @@ async function startEnvironment(req, res) {
           if (service.network && networkConfigs[service.network]) {
             const netConfig = networkConfigs[service.network];
             // Create TAP interface name
-            const tapName = `tap-${service.name}`;
+            const tapName = makeTapName(service.name);
             
             // Create TAP interface and attach to bridge
-            await callPythonInstanceMethod(
+            const tapResult = await callPythonInstanceMethod(
               'network_manager',
               'NetworkManager',
-              { repo_root: REPO_ROOT },
+              { repo_root: REPO_ROOT, sudo_password: sudoPassword || null },
               'create_tap_interface',
               {
                 tap_name: tapName,
                 bridge_name: netConfig.bridge_name
               }
             );
+
+            // NetworkManager now returns the actual tap interface name on success (string)
+            const tapActual = (typeof tapResult === 'string' && tapResult) ? tapResult : tapName;
             
             networkConfig = {
               bridge_name: netConfig.bridge_name,
-              tap_name: tapName,
+              tap_name: tapActual,
               subnet: netConfig.subnet
             };
           }
@@ -418,6 +435,7 @@ async function startEnvironment(req, res) {
 async function stopEnvironment(req, res) {
   try {
     const { name } = req.params;
+    const sudoPassword = getSudoPassword();
     
     // Load environment config
     const config = await environmentManager.getEnvironment(name);
@@ -478,7 +496,7 @@ async function stopEnvironment(req, res) {
           await callPythonInstanceMethod(
             'network_manager',
             'NetworkManager',
-            { repo_root: REPO_ROOT },
+            { repo_root: REPO_ROOT, sudo_password: sudoPassword || null },
             'delete_bridge_network',
             { network_name: network.name }
           );

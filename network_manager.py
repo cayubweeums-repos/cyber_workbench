@@ -122,6 +122,10 @@ class NetworkManager:
             return stderr
         
         try:
+            # Snapshot interfaces before creation so we can reliably identify the new bridge.
+            before = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            before_ifaces = set(before.stdout.split()) if before.returncode == 0 and before.stdout else set()
+
             # Create bridge interface with auto-generated name
             # On macOS, ifconfig bridge create creates a bridge with auto-generated name (bridge0, bridge1, etc.)
             result = self._run_command([
@@ -132,20 +136,21 @@ class NetworkManager:
                 stderr = _clean_stderr(result.stderr)
                 raise RuntimeError(f"Failed to create bridge: {stderr}")
             
-            # macOS often prints the created interface name (e.g. "bridge0") to stdout.
+            # Identify the created bridge by diffing interface lists.
+            after = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            if after.returncode != 0:
+                raise RuntimeError("Failed to list interfaces after bridge creation")
+            after_ifaces = set(after.stdout.split()) if after.stdout else set()
+
             created_bridge = None
-            if result.stdout:
-                created_bridge = result.stdout.strip().splitlines()[-1].strip()
-            
-            # If stdout didn't include it, fallback to finding the newest bridge interface
-            if not created_bridge:
-                list_result = self._run_command(["ifconfig", "-l"], use_sudo=False)
-                if list_result.returncode != 0:
-                    raise RuntimeError("Failed to list interfaces after bridge creation")
-                candidates = [i for i in list_result.stdout.split() if i.startswith("bridge")]
+            created = [i for i in (after_ifaces - before_ifaces) if i.startswith("bridge")]
+            if created:
+                created_bridge = sorted(created)[0]
+            else:
+                # Fallback: choose highest-numbered bridge interface
+                candidates = [i for i in after_ifaces if i.startswith("bridge")]
                 if not candidates:
                     raise RuntimeError("Failed to identify newly created bridge interface")
-                # Prefer highest-numbered bridge (bridge0, bridge1, ...)
                 def _bridge_num(name: str) -> int:
                     try:
                         return int(name.replace("bridge", ""))
@@ -311,39 +316,83 @@ class NetworkManager:
         with open(config_file, 'r') as f:
             return yaml.safe_load(f)
     
-    def create_tap_interface(self, tap_name: str, bridge_name: str) -> bool:
-        """Create a TAP interface and attach it to a bridge."""
+    def create_tap_interface(self, tap_name: str, bridge_name: str):
+        """Create a TAP interface and attach it to a bridge.
+        
+        Returns:
+            - On Linux: the tap interface name (string) on success
+            - On macOS: the created tap interface name (e.g. "tap0") on success
+            - False on failure
+        """
         system = platform.system()
         
         if system == "Darwin":
-            # macOS TAP interfaces
-            result = self._run_command([
-                "ifconfig", bridge_name, "addm", tap_name
-            ], use_sudo=True)
-            return result.returncode == 0
+            # macOS TAP interfaces require a TAP driver (e.g., tuntaposx).
+            # We cannot reliably rename TAP interfaces, so we create one and return its real name (tap0/tap1/...).
+            before = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            before_ifaces = set(before.stdout.split()) if before.returncode == 0 and before.stdout else set()
+
+            create = self._run_command(["ifconfig", "tap", "create"], use_sudo=True)
+            if create.returncode != 0:
+                stderr = (create.stderr or "").strip()
+                raise RuntimeError(
+                    f"Failed to create TAP interface on macOS. "
+                    f"This typically requires a TAP driver (e.g., tuntaposx). "
+                    f"Error: {stderr}"
+                )
+
+            after = self._run_command(["ifconfig", "-l"], use_sudo=False)
+            after_ifaces = set(after.stdout.split()) if after.returncode == 0 and after.stdout else set()
+            created = [i for i in (after_ifaces - before_ifaces) if i.startswith("tap")]
+            if not created:
+                # Fallback: pick highest tapN
+                candidates = [i for i in after_ifaces if i.startswith("tap")]
+                if not candidates:
+                    raise RuntimeError("Failed to identify created TAP interface on macOS")
+                def _tap_num(name: str) -> int:
+                    try:
+                        return int(name.replace("tap", ""))
+                    except Exception:
+                        return -1
+                tap_actual = sorted(candidates, key=_tap_num)[-1]
+            else:
+                tap_actual = sorted(created)[0]
+
+            # Bring tap up
+            up = self._run_command(["ifconfig", tap_actual, "up"], use_sudo=True)
+            if up.returncode != 0:
+                raise RuntimeError(f"Failed to bring TAP up: {(up.stderr or '').strip()}")
+
+            # Add tap to bridge
+            addm = self._run_command(["ifconfig", bridge_name, "addm", tap_actual], use_sudo=True)
+            if addm.returncode != 0:
+                raise RuntimeError(f"Failed to add TAP to bridge: {(addm.stderr or '').strip()}")
+
+            return tap_actual
         elif system == "Linux":
-            # Create TAP interface
-            result = self._run_command([
-                "ip", "tuntap", "add", "mode", "tap", "name", tap_name
-            ], use_sudo=True)
-            
-            if result.returncode != 0:
-                raise RuntimeError(f"Failed to create TAP: {result.stderr}")
-            
+            # Interface names are limited (typically 15 chars). Enforce a safe length.
+            tap_actual = tap_name[:15]
+
+            # If it already exists, just ensure it's up and enslaved.
+            exists = self._run_command(["ip", "link", "show", tap_actual], use_sudo=False)
+            if exists.returncode != 0:
+                result = self._run_command([
+                    "ip", "tuntap", "add", "mode", "tap", "name", tap_actual
+                ], use_sudo=True)
+                if result.returncode != 0:
+                    raise RuntimeError(f"Failed to create TAP: {result.stderr}")
+
             # Bring TAP up
-            result = self._run_command([
-                "ip", "link", "set", tap_name, "up"
-            ], use_sudo=True)
-            
+            result = self._run_command(["ip", "link", "set", tap_actual, "up"], use_sudo=True)
             if result.returncode != 0:
                 raise RuntimeError(f"Failed to bring TAP up: {result.stderr}")
-            
+
             # Add TAP to bridge
-            result = self._run_command([
-                "ip", "link", "set", tap_name, "master", bridge_name
-            ], use_sudo=True)
-            
-            return result.returncode == 0
+            result = self._run_command(["ip", "link", "set", tap_actual, "master", bridge_name], use_sudo=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"Failed to attach TAP to bridge: {result.stderr}")
+
+            return tap_actual
         else:
             return False
     

@@ -133,9 +133,17 @@ class VMManager:
             print(f"Error saving config for {config.name}: {e}")
             return False
     
-    def create_vm(self, name: str, cpu_cores: int, ram_gb: int, 
-                  disk_size_gb: int) -> bool:
-        """Create a new VM configuration."""
+    def create_vm(self, name: str, cpu_cores: int, ram_gb: int,
+                  disk_size_gb: int, network: str = "user") -> bool:
+        """Create a new VM configuration.
+        
+        Args:
+            name: VM name
+            cpu_cores: Number of CPU cores
+            ram_gb: RAM in GB
+            disk_size_gb: Disk size in GB
+            network: Network mode/name (e.g., "user" or environment network name)
+        """
         # Validate VM name
         if not self._validate_vm_name(name):
             return False
@@ -150,7 +158,7 @@ class VMManager:
         vm_dir.mkdir(exist_ok=True)
         
         # Create and save config
-        config = VMConfig(name, cpu_cores, ram_gb, disk_size_gb)
+        config = VMConfig(name, cpu_cores, ram_gb, disk_size_gb, network=network or "user")
         return self.save_vm_config(config)
     
     def edit_vm(self, old_name: str, new_name: str, cpu_cores: int, 
