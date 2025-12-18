@@ -229,3 +229,4 @@ data/
 detection_eng*
 environments/*
 web-ui/package-lock.json
+networks/*
