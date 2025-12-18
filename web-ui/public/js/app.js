@@ -187,7 +187,13 @@ class VMManagerApp {
       if (running) {
         await this.environmentService.stop(name);
       } else {
-        await this.environmentService.start(name);
+        const resp = await this.environmentService.start(name);
+        if (resp && Array.isArray(resp.warnings) && resp.warnings.length > 0) {
+          alert(
+            `Environment started with warnings:\n\n` +
+            resp.warnings.map(w => `- ${w}`).join('\n')
+          );
+        }
       }
       await this.environmentList.load();
     } catch (error) {

@@ -6,9 +6,10 @@ const path = require('path');
 const EnvironmentManager = require('./environment-manager');
 const { callPythonInstanceMethod, REPO_ROOT } = require('./python-bridge');
 const operations = require('./operations');
-const { setProgress, clearProgress } = require('./progress');
+const { setProgress, getProgress, clearProgress } = require('./progress');
 const { getSudoPassword } = require('./sudo-password');
 const crypto = require('crypto');
+const { NetworkingSelector } = require('./networking');
 
 const environmentManager = new EnvironmentManager(REPO_ROOT);
 
@@ -190,6 +191,25 @@ async function deleteEnvironment(req, res) {
 async function startEnvironment(req, res) {
   try {
     const { name } = req.params;
+    const warnings = [];
+    const selector = new NetworkingSelector();
+    // Track runtime resources for best-effort cleanup if start fails mid-way
+    const createdNetworks = [];
+    const createdTaps = [];
+    const startedVMs = [];
+    let updatedServices = [];
+
+    const setEnvProgress = (progress) => {
+      setProgress(name, { ...progress, warnings: [...warnings] });
+    };
+
+    const addWarning = (warning) => {
+      const msg = String(warning || '').trim();
+      if (!msg) return;
+      warnings.push(msg);
+      const current = getProgress(name) || {};
+      setProgress(name, { ...current, warnings: [...warnings] });
+    };
     
     // Load environment config
     const config = await environmentManager.getEnvironment(name);
@@ -206,7 +226,7 @@ async function startEnvironment(req, res) {
     await environmentManager.updateEnvironment(name, { ...config, status: 'starting' });
     
     // Set initial progress
-    setProgress(name, {
+    setEnvProgress({
       stage: 'Starting Environment',
       message: 'Initializing environment...',
       percent: 0
@@ -214,7 +234,7 @@ async function startEnvironment(req, res) {
     
     try {
       // Step 1: Create networks
-      setProgress(name, {
+      setEnvProgress({
         stage: 'Creating Networks',
         message: 'Setting up network infrastructure...',
         percent: 10
@@ -225,24 +245,26 @@ async function startEnvironment(req, res) {
       
       for (const network of config.networks) {
         const isolated = network.isolated || false;
-        
-        // Create bridge network - pass sudo password during initialization
-        const networkResult = await callPythonInstanceMethod(
-          'network_manager',
-          'NetworkManager',
-          { 
-            repo_root: REPO_ROOT,
-            sudo_password: sudoPassword || null
-          },
-          'create_bridge_network',
-          {
-            network_name: network.name,
-            subnet: network.subnet || null,
-            isolated: isolated
-          }
-        );
-        
-        if (networkResult && networkResult.success !== false) {
+
+        try {
+          // Create bridge network - pass sudo password during initialization
+          await callPythonInstanceMethod(
+            'network_manager',
+            'NetworkManager',
+            {
+              repo_root: REPO_ROOT,
+              sudo_password: sudoPassword || null
+            },
+            'create_bridge_network',
+            {
+              network_name: network.name,
+              subnet: network.subnet || null,
+              isolated: isolated
+            }
+          );
+
+          createdNetworks.push(network.name);
+
           // Get network config to get bridge name
           const netConfig = await callPythonInstanceMethod(
             'network_manager',
@@ -251,7 +273,7 @@ async function startEnvironment(req, res) {
             'get_network_config',
             { network_name: network.name }
           );
-          
+
           if (netConfig) {
             networkConfigs[network.name] = {
               bridge_name: netConfig.bridge_name,
@@ -259,10 +281,15 @@ async function startEnvironment(req, res) {
               isolated: netConfig.isolated
             };
           }
+        } catch (e) {
+          addWarning(
+            `Failed to create environment network "${network.name}". ` +
+            `Services will fall back to user-mode networking. Error: ${e.message || e}`
+          );
         }
       }
       
-      setProgress(name, {
+      setEnvProgress({
         stage: 'Creating Services',
         message: 'Creating and configuring services...',
         percent: 30
@@ -277,6 +304,7 @@ async function startEnvironment(req, res) {
       
       let serviceIndex = 0;
       const totalServices = config.services.length;
+      updatedServices = Array.isArray(config.services) ? [...config.services] : [];
       
       // For each service of type WindowsVM
       for (const service of config.services) {
@@ -294,7 +322,7 @@ async function startEnvironment(req, res) {
           
           // Update progress for this service
           const serviceProgress = 30 + (serviceIndex / totalServices) * 60;
-          setProgress(name, {
+          setEnvProgress({
             stage: `Creating Service: ${service.name}`,
             message: `Setting up ${service.name}...`,
             percent: Math.floor(serviceProgress)
@@ -318,7 +346,7 @@ async function startEnvironment(req, res) {
             );
             
             // Create disk
-            setProgress(name, {
+            setEnvProgress({
               stage: `Creating Disk: ${service.name}`,
               message: `Creating disk for ${service.name}...`,
               percent: Math.floor(serviceProgress + 5)
@@ -326,7 +354,7 @@ async function startEnvironment(req, res) {
             await operations.createVMDisk(service.name, service.disk_size_gb, envVmsDir);
             
             // Download ISO
-            setProgress(name, {
+            setEnvProgress({
               stage: `Downloading ISO: ${service.name}`,
               message: `Downloading Windows ISO for ${service.name}...`,
               percent: Math.floor(serviceProgress + 10)
@@ -334,7 +362,7 @@ async function startEnvironment(req, res) {
             await operations.downloadWindowsISO(service.name, envVmsDir);
             
             // Prepare ISO
-            setProgress(name, {
+            setEnvProgress({
               stage: `Preparing ISO: ${service.name}`,
               message: `Preparing ISO for ${service.name}...`,
               percent: Math.floor(serviceProgress + 15)
@@ -345,35 +373,40 @@ async function startEnvironment(req, res) {
           
           // Get network config for this service
           let networkConfig = null;
-          if (service.network && networkConfigs[service.network]) {
-            const netConfig = networkConfigs[service.network];
-            // Create TAP interface name
+          let effectiveNetworkMode = 'user';
+          if (service.network) {
             const tapName = makeTapName(service.name);
-            
-            // Create TAP interface and attach to bridge
-            const tapResult = await callPythonInstanceMethod(
-              'network_manager',
-              'NetworkManager',
-              { repo_root: REPO_ROOT, sudo_password: sudoPassword || null },
-              'create_tap_interface',
-              {
-                tap_name: tapName,
-                bridge_name: netConfig.bridge_name
-              }
-            );
+            const selection = await selector.selectServiceNetworking({
+              serviceName: service.name,
+              requestedNetworkName: service.network,
+              networkConfigs,
+              createTap: async () => {
+                const netConfig = networkConfigs[service.network];
+                const tapResult = await callPythonInstanceMethod(
+                  'network_manager',
+                  'NetworkManager',
+                  { repo_root: REPO_ROOT, sudo_password: sudoPassword || null },
+                  'create_tap_interface',
+                  {
+                    tap_name: tapName,
+                    bridge_name: netConfig.bridge_name
+                  }
+                );
+                // NetworkManager returns actual tap name on macOS; on Linux it may return requested name.
+                return (typeof tapResult === 'string' && tapResult) ? tapResult : tapName;
+              },
+              warnings
+            });
+            networkConfig = selection.networkConfig;
+            effectiveNetworkMode = selection.effectiveMode === 'tap' ? 'tap' : 'user';
 
-            // NetworkManager now returns the actual tap interface name on success (string)
-            const tapActual = (typeof tapResult === 'string' && tapResult) ? tapResult : tapName;
-            
-            networkConfig = {
-              bridge_name: netConfig.bridge_name,
-              tap_name: tapActual,
-              subnet: netConfig.subnet
-            };
+            if (networkConfig && networkConfig.tap_name) {
+              createdTaps.push({ tap_name: networkConfig.tap_name, bridge_name: networkConfig.bridge_name });
+            }
           }
           
           // Start VM - get config first, then start
-          setProgress(name, {
+          setEnvProgress({
             stage: `Starting VM: ${service.name}`,
             message: `Starting ${service.name}...`,
             percent: Math.floor(serviceProgress + 20)
@@ -396,6 +429,24 @@ async function startEnvironment(req, res) {
               network: vmConfig.network || 'user',
               created: vmConfig.created
             }, networkConfig, envVmsDir);
+            startedVMs.push(service.name);
+          }
+
+          // Persist runtime network selection + tap name (if any) so stop() can clean up.
+          try {
+            const idx = updatedServices.findIndex(s => s && s.name === service.name);
+            if (idx >= 0) {
+              updatedServices[idx] = {
+                ...updatedServices[idx],
+                runtime: {
+                  ...(updatedServices[idx].runtime || {}),
+                  effective_network_mode: effectiveNetworkMode,
+                  ...(networkConfig ? { bridge_name: networkConfig.bridge_name, tap_name: networkConfig.tap_name } : {})
+                }
+              };
+            }
+          } catch (e) {
+            // best-effort only
           }
           
           serviceIndex++;
@@ -405,23 +456,75 @@ async function startEnvironment(req, res) {
       }
       
       // Update environment status to running
-      setProgress(name, {
+      setEnvProgress({
         stage: 'Ready',
         message: 'Environment started successfully',
         percent: 100
       });
       
-      await environmentManager.updateEnvironment(name, { ...config, status: 'running' });
+      await environmentManager.updateEnvironment(name, {
+        ...config,
+        services: updatedServices,
+        status: 'running',
+        lastStartWarnings: warnings,
+        lastStartedAt: new Date().toISOString()
+      });
       
       // Clear progress after a delay
       setTimeout(() => {
         clearProgress(name);
       }, 5000);
       
-      res.json({ success: true, message: 'Environment started successfully' });
+      res.json({ success: true, message: 'Environment started successfully', warnings });
     } catch (error) {
+      // Best-effort cleanup on failure: stop started VMs, delete created TAPs, delete created networks.
+      try {
+        // Stop any VMs that were started before failure
+        if (typeof startedVMs !== 'undefined' && Array.isArray(startedVMs)) {
+          for (const vmName of startedVMs) {
+            try { await operations.stopVM(vmName); } catch (e) { /* ignore */ }
+          }
+        }
+
+        // Delete any TAPs that were created (bridge deletion does not necessarily remove TAPs)
+        if (typeof createdTaps !== 'undefined' && Array.isArray(createdTaps)) {
+          for (const tap of createdTaps) {
+            try {
+              await callPythonInstanceMethod(
+                'network_manager',
+                'NetworkManager',
+                { repo_root: REPO_ROOT, sudo_password: getSudoPassword() || null },
+                'delete_tap_interface',
+                { tap_name: tap.tap_name, bridge_name: tap.bridge_name || null }
+              );
+            } catch (e) { /* ignore */ }
+          }
+        }
+
+        // Delete bridges that were created
+        if (typeof createdNetworks !== 'undefined' && Array.isArray(createdNetworks)) {
+          for (const netName of createdNetworks) {
+            try {
+              await callPythonInstanceMethod(
+                'network_manager',
+                'NetworkManager',
+                { repo_root: REPO_ROOT, sudo_password: getSudoPassword() || null },
+                'delete_bridge_network',
+                { network_name: netName }
+              );
+            } catch (e) { /* ignore */ }
+          }
+        }
+      } catch (e) {
+        // ignore cleanup errors
+      }
+
       // Update status back to stopped on error
-      await environmentManager.updateEnvironment(name, { ...config, status: 'stopped' });
+      await environmentManager.updateEnvironment(name, {
+        ...config,
+        status: 'stopped',
+        lastStartWarnings: warnings
+      });
       throw error;
     }
   } catch (error) {
@@ -482,6 +585,28 @@ async function stopEnvironment(req, res) {
           }
         }
         serviceIndex++;
+      }
+
+      // Clean up TAP interfaces created during start (if recorded)
+      try {
+        for (const service of config.services) {
+          const rt = service && service.runtime ? service.runtime : null;
+          if (rt && rt.tap_name) {
+            try {
+              await callPythonInstanceMethod(
+                'network_manager',
+                'NetworkManager',
+                { repo_root: REPO_ROOT, sudo_password: sudoPassword || null },
+                'delete_tap_interface',
+                { tap_name: rt.tap_name, bridge_name: rt.bridge_name || null }
+              );
+            } catch (e) {
+              console.warn(`Failed to delete TAP ${rt.tap_name}:`, e.message || e);
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
       }
       
       // Clean up networks

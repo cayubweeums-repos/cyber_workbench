@@ -336,8 +336,9 @@ class NetworkManager:
             if create.returncode != 0:
                 stderr = (create.stderr or "").strip()
                 raise RuntimeError(
-                    f"Failed to create TAP interface on macOS. "
-                    f"This typically requires a TAP driver (e.g., tuntaposx). "
+                    "Failed to create TAP interface on macOS (ifconfig tap create). "
+                    "TAP is optional; Cyber Workbench can fall back to QEMU user-mode networking. "
+                    "To use bridged environment networks, install a macOS TAP driver (e.g., tuntaposx) and retry. "
                     f"Error: {stderr}"
                 )
 
@@ -358,17 +359,29 @@ class NetworkManager:
             else:
                 tap_actual = sorted(created)[0]
 
-            # Bring tap up
-            up = self._run_command(["ifconfig", tap_actual, "up"], use_sudo=True)
-            if up.returncode != 0:
-                raise RuntimeError(f"Failed to bring TAP up: {(up.stderr or '').strip()}")
+            try:
+                # Bring tap up
+                up = self._run_command(["ifconfig", tap_actual, "up"], use_sudo=True)
+                if up.returncode != 0:
+                    raise RuntimeError(f"Failed to bring TAP up: {(up.stderr or '').strip()}")
 
-            # Add tap to bridge
-            addm = self._run_command(["ifconfig", bridge_name, "addm", tap_actual], use_sudo=True)
-            if addm.returncode != 0:
-                raise RuntimeError(f"Failed to add TAP to bridge: {(addm.stderr or '').strip()}")
+                # Add tap to bridge
+                addm = self._run_command(["ifconfig", bridge_name, "addm", tap_actual], use_sudo=True)
+                if addm.returncode != 0:
+                    raise RuntimeError(f"Failed to add TAP to bridge: {(addm.stderr or '').strip()}")
 
-            return tap_actual
+                return tap_actual
+            except Exception:
+                # Best-effort cleanup: detach + destroy tap so we don't leak interfaces on failure
+                try:
+                    self._run_command(["ifconfig", bridge_name, "deletem", tap_actual], use_sudo=True)
+                except Exception:
+                    pass
+                try:
+                    self._run_command(["ifconfig", tap_actual, "destroy"], use_sudo=True)
+                except Exception:
+                    pass
+                raise
         elif system == "Linux":
             # Interface names are limited (typically 15 chars). Enforce a safe length.
             tap_actual = tap_name[:15]
@@ -390,11 +403,42 @@ class NetworkManager:
             # Add TAP to bridge
             result = self._run_command(["ip", "link", "set", tap_actual, "master", bridge_name], use_sudo=True)
             if result.returncode != 0:
+                # Best-effort cleanup so we don't leak the tap interface
+                try:
+                    self._run_command(["ip", "link", "set", tap_actual, "down"], use_sudo=True)
+                except Exception:
+                    pass
+                try:
+                    self._run_command(["ip", "link", "delete", tap_actual], use_sudo=True)
+                except Exception:
+                    pass
                 raise RuntimeError(f"Failed to attach TAP to bridge: {result.stderr}")
 
             return tap_actual
         else:
             return False
+
+    def delete_tap_interface(self, tap_name: str, bridge_name: Optional[str] = None) -> bool:
+        """Delete a TAP interface (best-effort detach from bridge first).
+        
+        NOTE: On macOS, bridges do not automatically delete member TAP interfaces.
+        """
+        system = platform.system()
+        try:
+            if system == "Darwin":
+                if bridge_name:
+                    # Detach from bridge (ignore failures)
+                    self._run_command(["ifconfig", bridge_name, "deletem", tap_name], use_sudo=True)
+                result = self._run_command(["ifconfig", tap_name, "destroy"], use_sudo=True)
+                return result.returncode == 0
+            elif system == "Linux":
+                self._run_command(["ip", "link", "set", tap_name, "down"], use_sudo=True)
+                result = self._run_command(["ip", "link", "delete", tap_name], use_sudo=True)
+                return result.returncode == 0
+            else:
+                return False
+        except Exception as e:
+            raise RuntimeError(f"Error deleting TAP interface {tap_name}: {e}")
     
     def delete_bridge_network(self, network_name: str) -> bool:
         """Delete a bridge network."""

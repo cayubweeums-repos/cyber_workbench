@@ -9,6 +9,9 @@ class Environment {
     this.networks = data.networks || []; // Array of network configs: { name, type, isolated }
     this.status = data.status || 'stopped'; // 'stopped', 'running', 'starting', 'stopping'
     this.createdAt = data.createdAt || new Date().toISOString();
+    // Warnings from the most recent start attempt (best-effort, informational)
+    this.lastStartWarnings = Array.isArray(data.lastStartWarnings) ? data.lastStartWarnings : [];
+    this.lastStartedAt = data.lastStartedAt || null;
   }
 
   get isRunning() {
@@ -42,7 +45,9 @@ class Environment {
         isolated: net.isolated || false
       })),
       status: this.status,
-      createdAt: this.createdAt
+      createdAt: this.createdAt,
+      lastStartWarnings: this.lastStartWarnings,
+      lastStartedAt: this.lastStartedAt
     };
   }
 }

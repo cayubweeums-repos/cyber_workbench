@@ -1425,16 +1425,15 @@ class VMOperations:
                     return None
             
             # Start websockify WITHOUT --web flag
-            # nginx serves noVNC files and proxies WebSocket connections to websockify
+            # Express serves noVNC files and proxies WebSocket connections to websockify (/websockify/*)
             # websockify only handles WebSocket to VNC TCP conversion
             cmd = [
                 websockify_path,
                 str(websocket_port),
                 f"127.0.0.1:{vnc_port}"
             ]
-            print(f"Starting websockify (WebSocket only, nginx serves noVNC files)", flush=True)
+            print(f"Starting websockify (WebSocket only; UI server serves noVNC and proxies /websockify/*)", flush=True)
             print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
-            print(f"noVNC will be served from nginx at http://localhost:8006/", flush=True)
             print(f"Full command: {' '.join(cmd)}", flush=True)
             
             # Try to start websockify
@@ -1478,7 +1477,6 @@ class VMOperations:
                     if result == 0:
                         # Port is listening, success
                         print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
-                        print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
                         return websocket_port
                     else:
                         print(f"WARNING: Websockify process is running but port {websocket_port} is not listening", flush=True)

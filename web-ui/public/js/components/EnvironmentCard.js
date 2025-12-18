@@ -38,6 +38,13 @@ class EnvironmentCard extends BaseComponent {
         <div class="progress-text">${progress.percent || 0}%</div>
       </div>
     ` : '';
+
+    const warningCount = Array.isArray(this.environment.lastStartWarnings) ? this.environment.lastStartWarnings.length : 0;
+    const warningsHTML = warningCount > 0 ? `
+      <div class="environment-warnings" style="margin-top: 6px; color: #ffcc66; font-size: 12px;">
+        Last start warnings: ${warningCount}
+      </div>
+    ` : '';
     
     return `
       <div class="environment-card-header">
@@ -55,6 +62,7 @@ class EnvironmentCard extends BaseComponent {
           <span>RAM: ${resources.ram_gb} GB</span>
           <span>Disk: ${resources.disk_size_gb} GB</span>
         </div>
+        ${warningsHTML}
       </div>
       <div class="environment-actions">
         <button class="btn ${this.environment.isRunning ? 'btn-danger' : ''}" 

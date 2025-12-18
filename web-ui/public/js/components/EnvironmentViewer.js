@@ -41,6 +41,7 @@ class EnvironmentViewer extends BaseComponent {
         </div>
       </div>
       <div class="viewer-content">
+        <div id="environment-warning-banner" style="display:none; padding: 10px 12px; margin: 10px; border: 1px solid #ffcc66; color: #ffcc66; background: rgba(255, 204, 102, 0.08); border-radius: 6px;"></div>
         <div id="environment-network-container" style="width: 100%; height: 100%; position: relative;">
           <div class="loading" id="environment-viewer-loading">
             <div class="spinner"></div>
@@ -86,6 +87,25 @@ class EnvironmentViewer extends BaseComponent {
       if (!this.environment) {
         throw new Error('Environment not found');
       }
+
+      // Show last-start warnings (if any)
+      const banner = this.container.querySelector('#environment-warning-banner');
+      if (banner) {
+        const warnings = Array.isArray(this.environment.lastStartWarnings) ? this.environment.lastStartWarnings : [];
+        if (warnings.length > 0) {
+          const max = 6;
+          const shown = warnings.slice(0, max);
+          const remaining = warnings.length - shown.length;
+          banner.style.display = 'block';
+          banner.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 6px;">Warnings from last start</div>
+            <div style="white-space: pre-wrap;">${shown.map(w => `- ${this.escapeHtml(String(w))}`).join('\n')}${remaining > 0 ? `\n- ...and ${remaining} more` : ''}</div>
+          `;
+        } else {
+          banner.style.display = 'none';
+          banner.textContent = '';
+        }
+      }
       
       // Update title
       const title = this.container.querySelector('#environment-viewer-title');
@@ -105,6 +125,15 @@ class EnvironmentViewer extends BaseComponent {
         container.innerHTML = `<div class="empty-state"><p style="color: #ff4444;">Failed to load environment: ${error.message}</p></div>`;
       }
     }
+  }
+
+  escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   waitForVisNetwork(maxWait = 5000) {
