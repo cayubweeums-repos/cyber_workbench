@@ -227,3 +227,5 @@ vapiorc/
 novnc/
 data/
 detection_eng*
+environments/*
+web-ui/package-lock.json
