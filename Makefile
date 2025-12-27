@@ -21,6 +21,10 @@ start: check-deps setup-venv setup-dirs setup-nodejs
 	@echo "Starting VM Manager Web UI..."
 	@cd $(WEB_UI_DIR) && ./start-server.sh
 
+preflight: setup-venv
+	@echo "Running preflight checks..."
+	@node $(WEB_UI_DIR)/api/preflight-checks.js
+
 stop:
 	@echo "Stopping VM Manager..."
 	@pkill -f "node.*server.js" || pkill -f "web-ui/server.js" || true
@@ -55,15 +59,9 @@ check-deps-macos:
 	@echo "Checking for cdrtools..."
 	@brew list cdrtools >/dev/null 2>&1 || brew install cdrtools
 	@echo "Checking for websockify..."
-	@if ! command -v websockify >/dev/null 2>&1; then \
-		echo "Installing websockify via pip..."; \
-		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
-	fi
+	@echo "  websockify is provided by $(VENV) (installed via requirements.txt in setup-venv)"
 	@echo "Checking for nginx..."
-	@if ! command -v nginx >/dev/null 2>&1; then \
-		echo "nginx not found. Installing nginx..."; \
-		brew install nginx; \
-	fi
+	@echo "  nginx is not required (Express serves noVNC and proxies /websockify/*). Skipping."
 	@echo "All macOS dependencies installed"
 
 check-deps-linux:
@@ -101,10 +99,7 @@ check-deps-apt:
 		sudo apt-get install -y genisoimage; \
 	fi
 	@echo "Checking for websockify..."
-	@if ! command -v websockify >/dev/null 2>&1; then \
-		echo "Installing websockify via pip..."; \
-		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
-	fi
+	@echo "  websockify is provided by $(VENV) (installed via requirements.txt in setup-venv)"
 	@echo "All apt dependencies installed"
 
 check-deps-dnf:
@@ -124,10 +119,7 @@ check-deps-dnf:
 	@echo "Checking for genisoimage..."
 	@rpm -q genisoimage >/dev/null 2>&1 || sudo dnf install -y genisoimage
 	@echo "Checking for websockify..."
-	@if ! command -v websockify >/dev/null 2>&1; then \
-		echo "Installing websockify via pip..."; \
-		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
-	fi
+	@echo "  websockify is provided by $(VENV) (installed via requirements.txt in setup-venv)"
 	@echo "All dnf dependencies installed"
 
 check-deps-yum:
@@ -147,10 +139,7 @@ check-deps-yum:
 	@echo "Checking for genisoimage..."
 	@rpm -q genisoimage >/dev/null 2>&1 || sudo yum install -y genisoimage
 	@echo "Checking for websockify..."
-	@if ! command -v websockify >/dev/null 2>&1; then \
-		echo "Installing websockify via pip..."; \
-		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
-	fi
+	@echo "  websockify is provided by $(VENV) (installed via requirements.txt in setup-venv)"
 	@echo "All yum dependencies installed"
 
 check-deps-pacman:
@@ -170,10 +159,7 @@ check-deps-pacman:
 	@echo "Checking for cdrtools..."
 	@pacman -Q cdrtools >/dev/null 2>&1 || sudo pacman -S --noconfirm cdrtools
 	@echo "Checking for websockify..."
-	@if ! command -v websockify >/dev/null 2>&1; then \
-		echo "Installing websockify via pip..."; \
-		pip3 install websockify || $(VENV)/bin/pip install websockify || echo "Warning: Could not install websockify. Install manually with: pip install websockify"; \
-	fi
+	@echo "  websockify is provided by $(VENV) (installed via requirements.txt in setup-venv)"
 	@echo "All pacman dependencies installed"
 
 setup-venv:
@@ -183,6 +169,7 @@ setup-venv:
 	fi
 	@$(PIP) install --upgrade pip --quiet
 	@$(PIP) install -r $(REPO_ROOT)/requirements.txt --quiet
+	@$(PYTHON) -c "import yaml, websockify" >/dev/null 2>&1 || (echo "ERROR: Python deps missing in $(VENV). Try: make setup-venv" && exit 1)
 	@echo "Virtual environment ready"
 
 setup-dirs:

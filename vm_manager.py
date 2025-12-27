@@ -48,10 +48,20 @@ class VMConfig:
 class VMManager:
     """Manages VM configurations and operations."""
     
-    def __init__(self, repo_root: str):
+    def __init__(self, repo_root: str, vms_dir: Optional[str] = None):
+        """
+        Initialize VMManager.
+        
+        Args:
+            repo_root: Root directory of the repository
+            vms_dir: Optional custom directory for VMs. If None, uses repo_root/vms
+        """
         self.repo_root = Path(repo_root)
-        self.vms_dir = self.repo_root / "vms"
-        self.vms_dir.mkdir(exist_ok=True)
+        if vms_dir:
+            self.vms_dir = Path(vms_dir)
+        else:
+            self.vms_dir = self.repo_root / "vms"
+        self.vms_dir.mkdir(parents=True, exist_ok=True)
         self.sudo_password: Optional[str] = None
 
     def set_sudo_password(self, password: str):
@@ -76,8 +86,16 @@ class VMManager:
             cmd = ["sudo", "-S"] + cmd
         return subprocess.run(cmd, **kwargs)
     
-    def list_vms(self) -> List[str]:
-        """List all VM names by scanning the vms directory."""
+    def list_vms(self, exclude_environments: bool = True) -> List[str]:
+        """
+        List all VM names by scanning the vms directory.
+        
+        Args:
+            exclude_environments: If True, only list VMs from the current vms_dir.
+                                 Note: Environment VMs are stored in environments/{env-name}/vms/,
+                                 so they are naturally separated from main vms/ directory.
+                                 This parameter is mainly for API consistency.
+        """
         vms = []
         if self.vms_dir.exists():
             for item in self.vms_dir.iterdir():
@@ -115,9 +133,17 @@ class VMManager:
             print(f"Error saving config for {config.name}: {e}")
             return False
     
-    def create_vm(self, name: str, cpu_cores: int, ram_gb: int, 
-                  disk_size_gb: int) -> bool:
-        """Create a new VM configuration."""
+    def create_vm(self, name: str, cpu_cores: int, ram_gb: int,
+                  disk_size_gb: int, network: str = "user") -> bool:
+        """Create a new VM configuration.
+        
+        Args:
+            name: VM name
+            cpu_cores: Number of CPU cores
+            ram_gb: RAM in GB
+            disk_size_gb: Disk size in GB
+            network: Network mode/name (e.g., "user" or environment network name)
+        """
         # Validate VM name
         if not self._validate_vm_name(name):
             return False
@@ -132,7 +158,7 @@ class VMManager:
         vm_dir.mkdir(exist_ok=True)
         
         # Create and save config
-        config = VMConfig(name, cpu_cores, ram_gb, disk_size_gb)
+        config = VMConfig(name, cpu_cores, ram_gb, disk_size_gb, network=network or "user")
         return self.save_vm_config(config)
     
     def edit_vm(self, old_name: str, new_name: str, cpu_cores: int, 

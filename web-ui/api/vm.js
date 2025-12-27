@@ -11,11 +11,13 @@ const { clearProgress } = require('./progress');
  */
 async function listVMs(req, res) {
   try {
+    // Exclude environment VMs by default
     const vms = await callPythonInstanceMethod(
       'vm_manager',
       'VMManager',
       { repo_root: REPO_ROOT },
-      'list_vms'
+      'list_vms',
+      { exclude_environments: true }
     );
     res.json({ success: true, vms });
   } catch (error) {
@@ -231,13 +233,18 @@ async function stopVM(req, res) {
 async function getViewerPort(req, res) {
   try {
     const { name } = req.params;
+    const environmentName = req.query.environment;
     
+    // For environment VMs, the VM name might be the same but in a different directory
+    // The websockify path should still work since it's based on VM name
+    // But we need to check if it's running - for now, assume same check works
     const running = await isVMRunning(name);
     if (!running) {
       return res.status(400).json({ success: false, error: 'VM is not running' });
     }
     
     // Start websockify (Express handles noVNC serving and WebSocket proxying)
+    // Note: websockify uses VM name, which should be unique even across environments
     await operations.startWebsockify(name);
     
     // Return Express port (3000) and websockify path

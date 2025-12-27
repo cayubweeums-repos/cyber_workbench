@@ -6,20 +6,36 @@ class VMManagerApp {
   constructor() {
     this.services = services;
     this.vmService = this.services.get('vm');
+    this.environmentService = this.services.get('environment');
     this.vmList = null;
+    this.environmentList = null;
     this.createDialog = null;
     this.editDialog = null;
+    this.environmentWizard = null;
     this.viewer = null;
+    this.environmentViewer = null;
+    this.navSidebar = null;
+    this.currentView = 'environments'; // Default to environments view
   }
 
   async init() {
     this.initializeComponents();
     this.attachGlobalEventListeners();
+    this.showView('environments'); // Show environments view by default
     await this.load();
   }
 
   initializeComponents() {
-    // Initialize VM List
+    // Initialize Navigation Sidebar
+    this.navSidebar = new NavigationSidebar('nav-sidebar-container');
+    this.navSidebar.init();
+
+    // Initialize Environment List (for Environments view)
+    this.environmentList = new EnvironmentList('environment-list-container', this.environmentService);
+    this.environmentList.init();
+    this.environmentList.startAutoUpdate(2000);
+
+    // Initialize VM List (for VMs view)
     this.vmList = new VMList('vm-list-container', this.vmService);
     this.vmList.init();
     this.vmList.startAutoUpdate(2000);
@@ -31,8 +47,14 @@ class VMManagerApp {
     this.editDialog = new VMDialog('edit-dialog', 'edit');
     this.editDialog.init();
 
-    // Initialize Viewer
+    // Initialize Environment Wizard
+    this.environmentWizard = new EnvironmentWizard('environment-wizard');
+    this.environmentWizard.init();
+
+    // Initialize Viewers
     this.viewer = new VMViewer();
+    this.environmentViewer = new EnvironmentViewer('environment-viewer-container');
+    this.environmentViewer.init();
     
     // Attach close button
     const closeBtn = document.getElementById('close-viewer-btn');
@@ -44,7 +66,12 @@ class VMManagerApp {
   }
 
   attachGlobalEventListeners() {
-    // Create VM button
+    // Navigation change handler
+    document.addEventListener('nav-change', (e) => {
+      this.showView(e.detail.view);
+    });
+
+    // Create VM button (in VMs view)
     const createBtn = document.getElementById('create-vm-btn');
     if (createBtn) {
       createBtn.addEventListener('click', () => {
@@ -52,15 +79,33 @@ class VMManagerApp {
       });
     }
 
-    // Advanced Mode toggle (the joke)
-    const advancedToggle = document.getElementById('advanced-mode-toggle');
-    if (advancedToggle) {
-      advancedToggle.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          document.body.classList.add('advanced-mode');
-        } else {
-          document.body.classList.remove('advanced-mode');
-        }
+    // Advanced Mode toggle (the joke) - sync both toggles
+    const advancedToggles = [
+      document.getElementById('advanced-mode-toggle'),
+      document.getElementById('advanced-mode-toggle-vms')
+    ];
+    advancedToggles.forEach(toggle => {
+      if (toggle) {
+        toggle.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          // Sync both toggles
+          advancedToggles.forEach(t => {
+            if (t) t.checked = isChecked;
+          });
+          if (isChecked) {
+            document.body.classList.add('advanced-mode');
+          } else {
+            document.body.classList.remove('advanced-mode');
+          }
+        });
+      }
+    });
+
+    // Create Environment button (in Environments view)
+    const createEnvBtn = document.getElementById('create-environment-btn');
+    if (createEnvBtn) {
+      createEnvBtn.addEventListener('click', () => {
+        this.showEnvironmentWizard();
       });
     }
 
@@ -68,10 +113,143 @@ class VMManagerApp {
     document.addEventListener('vm-action', (e) => {
       this.handleVMAction(e.detail.action, e.detail.name, e.detail.running);
     });
+
+    // Environment action handler
+    document.addEventListener('environment-action', (e) => {
+      this.handleEnvironmentAction(e.detail.action, e.detail.name, e.detail.running);
+    });
+
+    // VM viewer from environment handler
+    document.addEventListener('open-vm-viewer', async (e) => {
+      const { vmName, environmentName } = e.detail;
+      await this.openVMFromEnvironment(vmName, environmentName);
+    });
+  }
+
+  showView(viewName) {
+    this.currentView = viewName;
+    
+    // Update sidebar active state
+    if (this.navSidebar) {
+      this.navSidebar.setActiveView(viewName);
+    }
+    
+    // Show/hide appropriate views
+    const environmentsView = document.getElementById('environments-view');
+    const vmsView = document.getElementById('vms-view');
+    
+    if (viewName === 'environments') {
+      if (environmentsView) environmentsView.style.display = 'block';
+      if (vmsView) vmsView.style.display = 'none';
+      // Load environments when switching to Environments view
+      if (this.environmentList) {
+        this.environmentList.load();
+      }
+    } else if (viewName === 'vms') {
+      if (environmentsView) environmentsView.style.display = 'none';
+      if (vmsView) vmsView.style.display = 'block';
+      // Load VMs when switching to VMs view
+      if (this.vmList) {
+        this.vmList.load();
+      }
+    }
+  }
+
+  async handleEnvironmentAction(action, name, running) {
+    switch (action) {
+      case 'toggle':
+        await this.toggleEnvironment(name, running);
+        break;
+      case 'view':
+        await this.viewEnvironment(name);
+        break;
+      case 'delete':
+        await this.deleteEnvironment(name);
+        break;
+    }
+  }
+
+  async toggleEnvironment(name, running) {
+    try {
+      // Show resource warning before starting
+      if (!running) {
+        const environment = await this.environmentService.getFullEnvironmentData(name);
+        if (environment) {
+          const resources = environment.getTotalResources();
+          const message = `Make sure you have sufficient resources (CPU, RAM, disk) available before starting this environment. Starting will consume:\n\nCPU: ${resources.cpu_cores} cores\nRAM: ${resources.ram_gb} GB\nDisk: ${resources.disk_size_gb} GB`;
+          
+          if (!confirm(message)) {
+            return;
+          }
+        }
+      }
+
+      if (running) {
+        await this.environmentService.stop(name);
+      } else {
+        const resp = await this.environmentService.start(name);
+        if (resp && Array.isArray(resp.warnings) && resp.warnings.length > 0) {
+          alert(
+            `Environment started with warnings:\n\n` +
+            resp.warnings.map(w => `- ${w}`).join('\n')
+          );
+        }
+      }
+      await this.environmentList.load();
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  }
+
+  async viewEnvironment(name) {
+    try {
+      // Store environment name for VM viewer access
+      this.currentEnvironmentName = name;
+      this.environmentViewer.open(name, this.environmentService);
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  }
+
+  async openVMFromEnvironment(vmName, environmentName = null) {
+    try {
+      const envName = environmentName || this.currentEnvironmentName;
+      if (!envName) {
+        throw new Error('Environment name not available');
+      }
+
+      // Get viewer port for VM in environment directory
+      const port = await this.vmService.getViewerPort(vmName, envName);
+      if (port) {
+        this.viewer.open(vmName, port);
+      } else {
+        throw new Error('VM viewer not available. Make sure the VM is running.');
+      }
+    } catch (error) {
+      alert('Error opening VM viewer: ' + error.message);
+    }
+  }
+
+  async deleteEnvironment(name) {
+    if (!confirm(`Are you sure you want to delete environment '${name}'? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await this.environmentService.delete(name);
+      await this.environmentList.load();
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
   }
 
   async load() {
-    await this.vmList.load();
+    // Load based on current view
+    if (this.currentView === 'environments' && this.environmentList) {
+      await this.environmentList.load();
+    } else if (this.currentView === 'vms' && this.vmList) {
+      await this.vmList.load();
+    }
   }
 
   showCreateDialog() {
@@ -208,6 +386,24 @@ class VMManagerApp {
       await this.vmList.load();
     } catch (error) {
       alert('Error: ' + error.message);
+    }
+  }
+
+  showEnvironmentWizard() {
+    this.environmentWizard.show(async (config) => {
+      await this.createEnvironment(config);
+    });
+  }
+
+  async createEnvironment(config) {
+    try {
+      // Create environment config
+      await this.environmentService.create(config);
+      
+      // Refresh list to show new environment
+      await this.environmentList.load();
+    } catch (error) {
+      alert('Failed to create environment: ' + error.message);
     }
   }
 }

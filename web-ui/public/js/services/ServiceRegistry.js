@@ -13,8 +13,10 @@ class ServiceRegistry {
     // Register VM service
     this.services.vm = new VMService(this.apiClient);
     
+    // Register Environment service
+    this.services.environment = new EnvironmentService(this.apiClient);
+    
     // Easy to add more services here:
-    // this.services.environment = new EnvironmentService(this.apiClient);
     // this.services.network = new NetworkService(this.apiClient);
   }
 

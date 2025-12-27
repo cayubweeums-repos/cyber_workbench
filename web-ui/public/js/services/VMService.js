@@ -47,8 +47,11 @@ class VMService {
     return response;
   }
 
-  async getViewerPort(name) {
-    const response = await this.api.get(`/vms/${name}/viewer-port`);
+  async getViewerPort(name, environmentName = null) {
+    const url = environmentName 
+      ? `/vms/${name}/viewer-port?environment=${encodeURIComponent(environmentName)}`
+      : `/vms/${name}/viewer-port`;
+    const response = await this.api.get(url);
     // Response includes both port and websockifyPath for multi-VM support
     return response.port ? {
       port: response.port,

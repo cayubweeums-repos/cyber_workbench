@@ -7,17 +7,28 @@ import subprocess
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Optional, Callable, List
+from typing import Optional, Callable, List, Dict
 import shlex
 
 
 class VMOperations:
     """Handles QEMU operations and ISO preparation."""
     
-    def __init__(self, repo_root: str):
+    def __init__(self, repo_root: str, vms_dir: Optional[str] = None):
+        """
+        Initialize VMOperations.
+        
+        Args:
+            repo_root: Root directory of the repository
+            vms_dir: Optional custom directory for VMs. If None, uses repo_root/vms
+        """
         self.repo_root = Path(repo_root)
-        self.vms_dir = self.repo_root / "vms"
-        self.shared_dir = self.vms_dir / "shared"
+        if vms_dir:
+            self.vms_dir = Path(vms_dir)
+        else:
+            self.vms_dir = self.repo_root / "vms"
+        # Shared directory always uses main vms directory for shared resources
+        self.shared_dir = self.repo_root / "vms" / "shared"
         self.shared_dir.mkdir(parents=True, exist_ok=True)
         
         # URLs from the setup guide
@@ -1104,8 +1115,19 @@ class VMOperations:
             traceback.print_exc()
             return False
     
-    def start_vm(self, vm_name: str, config) -> bool:
-        """Start a VM using QEMU."""
+    def start_vm(self, vm_name: str, config, network_config: Optional[Dict] = None) -> bool:
+        """
+        Start a VM using QEMU.
+        
+        Args:
+            vm_name: Name of the VM
+            config: VM configuration object
+            network_config: Optional network configuration dict with:
+                - bridge_name: Bridge interface name (e.g., "br-env-internal")
+                - tap_name: TAP interface name (auto-generated if not provided)
+                - subnet: Network subnet
+                If None, uses default user-mode networking.
+        """
         vm_dir = self.vms_dir / vm_name
         disk_image = vm_dir / "windows.img"
         modified_iso = vm_dir / "win11-arm64-modified.iso"
@@ -1217,8 +1239,28 @@ class VMOperations:
             cmd.extend([
                 "-device", "usb-tablet",
                 "-device", "usb-kbd",
-                "-netdev", "user,id=hostnet0",
-                "-device", "virtio-net-pci,netdev=hostnet0",
+            ])
+            
+            # Network configuration
+            if network_config and network_config.get('bridge_name'):
+                # Use bridge/TAP networking for environment networks
+                bridge_name = network_config['bridge_name']
+                tap_name = network_config.get('tap_name', f"tap-{vm_name}")
+                
+                # Create TAP interface if needed (handled by network manager)
+                # For now, assume TAP is created by network manager
+                cmd.extend([
+                    "-netdev", f"tap,id=hostnet0,ifname={tap_name},script=no,downscript=no",
+                    "-device", "virtio-net-pci,netdev=hostnet0",
+                ])
+            else:
+                # Default: user-mode networking (for standalone VMs)
+                cmd.extend([
+                    "-netdev", "user,id=hostnet0",
+                    "-device", "virtio-net-pci,netdev=hostnet0",
+                ])
+            
+            cmd.extend([
                 "-object", "rng-random,id=objrng0,filename=/dev/urandom",
                 "-device", "virtio-rng-pci,rng=objrng0,id=rng0,bus=pcie.0",
                 "-device", "ramfb",
@@ -1253,14 +1295,11 @@ class VMOperations:
     
     def stop_vm(self, vm_name: str) -> bool:
         """Stop a running VM."""
-        vm_dir = self.vms_dir / vm_name
-        disk_image = vm_dir / "windows.img"
-        
-        if not disk_image.exists():
-            return False
-        
         try:
-            # Find and kill QEMU process
+            # Find and kill QEMU process.
+            # IMPORTANT: Do not require the VM disk to exist under self.vms_dir.
+            # Environment VMs live under environments/<env>/vms/, but the QEMU command line
+            # still includes "windows.img" and the vm_name, so pgrep is sufficient.
             result = subprocess.run(
                 ["pgrep", "-f", f"windows.img.*{vm_name}"],
                 capture_output=True,
@@ -1272,6 +1311,8 @@ class VMOperations:
                 for pid in pids:
                     if pid:
                         subprocess.run(["kill", pid], capture_output=True)
+            else:
+                return False
             
             # Also stop websockify proxy if running
             self.stop_websockify(vm_name)
@@ -1384,16 +1425,15 @@ class VMOperations:
                     return None
             
             # Start websockify WITHOUT --web flag
-            # nginx serves noVNC files and proxies WebSocket connections to websockify
+            # Express serves noVNC files and proxies WebSocket connections to websockify (/websockify/*)
             # websockify only handles WebSocket to VNC TCP conversion
             cmd = [
                 websockify_path,
                 str(websocket_port),
                 f"127.0.0.1:{vnc_port}"
             ]
-            print(f"Starting websockify (WebSocket only, nginx serves noVNC files)", flush=True)
+            print(f"Starting websockify (WebSocket only; UI server serves noVNC and proxies /websockify/*)", flush=True)
             print(f"WebSocket will connect to: ws://127.0.0.1:{websocket_port}/", flush=True)
-            print(f"noVNC will be served from nginx at http://localhost:8006/", flush=True)
             print(f"Full command: {' '.join(cmd)}", flush=True)
             
             # Try to start websockify
@@ -1437,7 +1477,6 @@ class VMOperations:
                     if result == 0:
                         # Port is listening, success
                         print(f"Websockify started successfully on port {websocket_port} for VNC {vnc_port}", flush=True)
-                        print(f"Access noVNC via nginx at: http://localhost:8006/vnc.html", flush=True)
                         return websocket_port
                     else:
                         print(f"WARNING: Websockify process is running but port {websocket_port} is not listening", flush=True)

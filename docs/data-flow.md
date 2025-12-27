@@ -33,6 +33,13 @@ classDiagram
     VMConfig -->|Serialized| YAML
 ```
 
+## Environment Model Notes
+
+Environments persist informational metadata about the most recent start attempt:
+
+- `lastStartWarnings: string[]` (warnings emitted when falling back from TAP/bridge networking to user-mode, or when environment networks fail to create)
+- `lastStartedAt: string | null` (timestamp of last successful start)
+
 ## Data Transformation Flow
 
 ```mermaid

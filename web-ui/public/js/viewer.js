@@ -10,13 +10,26 @@ class VMViewer {
     this.vmService = services.get('vm');
   }
 
-  open(vmName, viewerPort) {
+  open(vmName, viewerInfo) {
     this.currentVMName = vmName;
     
     // If VM is running, open standalone viewer page (same as test-iframe.html but dynamic)
-    if (viewerPort) {
-      // Redirect to standalone viewer.html page with VM name parameter
-      window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+    if (viewerInfo) {
+      // viewerInfo can be:
+      // - truthy boolean (legacy)
+      // - number (legacy port)
+      // - { port, websockifyPath } (current)
+      const port = (typeof viewerInfo === 'object' && viewerInfo.port) ? viewerInfo.port : viewerInfo;
+      const websockifyPath = (typeof viewerInfo === 'object' && viewerInfo.websockifyPath)
+        ? viewerInfo.websockifyPath
+        : `/websockify/${vmName}`;
+
+      const params = new URLSearchParams();
+      params.set('vm', vmName);
+      if (port) params.set('port', String(port));
+      if (websockifyPath) params.set('path', String(websockifyPath));
+
+      window.location.href = `/viewer.html?${params.toString()}`;
       return;
     }
     
@@ -74,8 +87,8 @@ class VMViewer {
                 
                 if (viewerInfo && viewerInfo.port) {
                   this.stopProgressPolling();
-                  // Redirect to standalone viewer page
-                  window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+                  // Redirect to standalone viewer page (include resolved path/port)
+                  this.open(vmName, viewerInfo);
                   return;
                 }
               } else {
@@ -91,8 +104,8 @@ class VMViewer {
               
               if (viewerInfo && viewerInfo.port) {
                 this.stopProgressPolling();
-                // Redirect to standalone viewer page
-                window.location.href = `/viewer.html?vm=${encodeURIComponent(vmName)}`;
+                // Redirect to standalone viewer page (include resolved path/port)
+                this.open(vmName, viewerInfo);
                 return;
               }
             }

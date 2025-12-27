@@ -5,24 +5,25 @@
 ```mermaid
 graph TB
     Browser[Browser] -->|HTTP| Express[Express Server :3000]
-    Browser -->|HTTP/WS| Nginx[nginx :8006]
+    Browser -->|HTTP/WS| Express
     Express -->|Routes| API[API Layer]
     API -->|Subprocess| Python[Python Bridge]
     Python -->|Calls| VMManager[VMManager]
     Python -->|Calls| VMOps[VMOperations]
+    Python -->|Calls| NetMgr[NetworkManager]
     VMOps -->|QEMU| QEMU1[QEMU VM1 :5900]
     VMOps -->|QEMU| QEMU2[QEMU VM2 :5900]
     VMOps -->|Websockify| WS1[Websockify VM1<br/>Port 6080-7079]
     VMOps -->|Websockify| WS2[Websockify VM2<br/>Port 6080-7079]
     WS1 -->|VNC| QEMU1
     WS2 -->|VNC| QEMU2
-    Nginx -->|Proxy WS| WS1
-    Nginx -->|Proxy WS| WS2
-    Nginx -->|Serve| noVNC[noVNC Files]
+    Express -->|Proxy WS| WS1
+    Express -->|Proxy WS| WS2
+    Express -->|Serve| noVNC[noVNC Files]
     VMManager -->|YAML| Config[VM Configs]
     VMOps -->|qcow2| Disks[Disk Images]
     API -->|Track| Tracker[VM Tracker]
-    Tracker -->|Manage| Nginx
+    NetMgr -->|ifconfig/ip| System[Host Networking]
 ```
 
 ## Layer Separation
