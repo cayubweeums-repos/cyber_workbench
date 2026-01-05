@@ -1,0 +1,21 @@
+{
+  "name": "windows-vm-manager",
+  "version": "1.0.0",
+  "description": "Simple Windows VM Manager with Docker",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dockerode": "^4.0.0",
+    "ws": "^8.14.0",
+    "tar-fs": "^3.0.4",
+    "ssh2": "^1.15.0",
+    "xml2js": "^0.6.2",
+    "multer": "^1.4.5-lts.1",
+    "prom-client": "^15.1.0"
+  }
+}
+

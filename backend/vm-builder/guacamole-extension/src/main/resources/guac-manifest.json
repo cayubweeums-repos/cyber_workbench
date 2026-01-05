@@ -1,0 +1,9 @@
+{
+    "guacamoleVersion": "1.5.4",
+    "name": "No-Auth Extension",
+    "namespace": "noauth",
+    "authProviders": [
+        "net.sourceforge.guac.noauth.NoAuthenticationProvider"
+    ]
+}
+

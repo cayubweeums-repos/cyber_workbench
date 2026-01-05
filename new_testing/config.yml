@@ -1,0 +1,5 @@
+- instance_name: us_1
+  client_id: client_id_here
+  client_secret: client_secret_here
+  base_url: https://api.crowdstrike.com
+  member_cid: 

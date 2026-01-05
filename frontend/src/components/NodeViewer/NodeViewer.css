@@ -1,0 +1,76 @@
+.node-viewer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #1a1a1a;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: #2a2a2a;
+  border-bottom: 1px solid #444;
+}
+
+.node-viewer-header h2 {
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.node-viewer-header button {
+  padding: 0.5rem 1rem;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #e0e0e0;
+  cursor: pointer;
+}
+
+.node-viewer-header button:hover {
+  background: #4a4a4a;
+}
+
+.node-viewer-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.node-viewer-frame-container {
+  width: 100%;
+  height: 100%;
+}
+
+.node-viewer-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.node-viewer-loading,
+.node-viewer-error,
+.node-viewer-info {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #888;
+  font-size: 1.1rem;
+}
+
+.node-viewer-error {
+  color: #d13438;
+}
+
+.node-viewer-info {
+  flex-direction: column;
+  gap: 1rem;
+}
+

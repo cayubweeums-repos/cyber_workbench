@@ -1,0 +1,56 @@
+services:
+  backend:
+    container_name: cyber-workbench-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: cyber-workbench-backend:latest
+    security_opt:
+      - label=disable
+    networks:
+      - management
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:z
+      - ./backend/vm-builder:/app/vm-builder:z
+      - ./backend/storage:/app/storage:z
+    environment:
+      STORAGE_BASE: "/app/storage/vms"
+      RECORDINGS_PATH: "/app/storage/recordings"
+      ENVIRONMENTS_DIR: "/app/storage/environments"
+      IS_FEDORA: "${IS_FEDORA:-true}"
+      VM_DEFAULT_TIME_LIMIT: "3600"
+      VM_MAX_TIME_LIMIT: "14400"
+      VM_CLEANUP_PRESERVE_STORAGE: "false"
+      VM_MAX_INSTANCES: "10"
+      VM_MAX_TOTAL_RAM_GB: "64"
+      VM_MAX_TOTAL_CPU_CORES: "32"
+      METRICS_ENABLED: "true"
+      VM_ALLOW_INTERNET: "true"
+    ports:
+      - 8080:8080
+    restart: unless-stopped
+
+  frontend:
+    container_name: cyber-workbench-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: cyber-workbench-frontend:latest
+    networks:
+      - management
+    ports:
+      - 3000:3000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  management:
+    driver: bridge
+    internal: false
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+

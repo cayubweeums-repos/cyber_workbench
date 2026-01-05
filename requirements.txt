@@ -1,3 +1,0 @@
-pyyaml>=6.0.1
-websockify>=0.11.0
-

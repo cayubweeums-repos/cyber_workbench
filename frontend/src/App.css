@@ -1,0 +1,103 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: #2a2a2a;
+  border-bottom: 1px solid #444;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.app-header nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.app-header nav button {
+  padding: 0.5rem 1rem;
+  background: #3a3a3a;
+  border: 1px solid #555;
+  color: #e0e0e0;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.app-header nav button:hover {
+  background: #4a4a4a;
+}
+
+.app-header nav button.active {
+  background: #0078d4;
+  border-color: #0078d4;
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+}
+
+.builder-layout {
+  display: flex;
+  height: 100%;
+}
+
+.node-library-sidebar {
+  width: 300px;
+  background: #2a2a2a;
+  border-right: 1px solid #444;
+  overflow-y: auto;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+}
+
+.node-editor-sidebar {
+  width: 300px;
+  background: #2a2a2a;
+  border-left: 1px solid #444;
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-save {
+  padding: 0.5rem 1rem;
+  background: #107c10;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  margin-left: 1rem;
+}
+
+.btn-save:hover {
+  background: #0e6b0e;
+}
+
+.btn-view-node {
+  margin: 1rem;
+  padding: 0.75rem;
+  background: #0078d4;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.btn-view-node:hover {
+  background: #106ebe;
+}
+
