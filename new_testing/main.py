@@ -9,7 +9,7 @@ Results are saved to JSON files named {instance_name}_events.json
 import json
 import sys
 import yaml
-from falconpy import EventStreams
+from falconpy import APIHarnessV2
 
 
 def load_config(config_path="config.yml"):
@@ -32,12 +32,14 @@ def search_events(instance_config, fql_query):
     
     Uses Direct Authentication (FalconPy v0.6.2+) which is the standard method.
     Supports MSSP authentication via member_cid when provided.
+    
+    Uses APIHarnessV2 (Uber Class) to call the Event Streams query endpoint.
     """
     instance_name = instance_config["instance_name"]
     print(f"Searching instance: {instance_name}")
     
     try:
-        # Direct Authentication: Pass credentials directly to EventStreams service class
+        # Direct Authentication: Pass credentials directly to APIHarnessV2 (Uber Class)
         # No need to call authenticate() - token is obtained automatically on first request
         # For MSSP scenarios, include member_cid to authenticate to child tenant
         auth_params = {
@@ -51,16 +53,18 @@ def search_events(instance_config, fql_query):
             auth_params["member_cid"] = instance_config["member_cid"]
             print(f"  Using MSSP authentication for CID: {instance_config['member_cid']}")
         
-        event_streams = EventStreams(**auth_params)
+        # Use APIHarnessV2 (Uber Class) to access all API operations
+        falcon = APIHarnessV2(**auth_params)
         
         all_events = []
         offset = 0
         limit = 500
         
         while True:
-            # Query events using FalconPy EventStreams service class
-            # The query_events method searches for events matching the FQL filter
-            response = event_streams.query_events(
+            # Query events using the Event Streams query endpoint
+            # Operation ID: QueryEvents (from event-streams/queries/events/v1)
+            response = falcon.command(
+                "QueryEvents",
                 filter=fql_query,
                 limit=limit,
                 offset=offset
